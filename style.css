@@ -1,0 +1,467 @@
+/* ============================================
+   LHX CASTELBOLOGNESE — RETRO HELICOPTER GAME
+   ============================================ */
+
+/* --- Reset & Base --- */
+*, *::before, *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    overflow: hidden;
+    background: #000;
+    font-family: 'VT323', monospace;
+    color: #00ff41;
+    cursor: none;
+    user-select: none;
+}
+
+.hidden { display: none !important; }
+
+/* --- Game Canvas --- */
+#game-container {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 1;
+}
+
+#game-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+/* --- Title Screen --- */
+#title-screen {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 100;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+}
+
+.title-content {
+    text-align: center;
+}
+
+.title-main {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 6rem;
+    color: #00ff41;
+    text-shadow: 
+        0 0 20px #00ff41,
+        0 0 40px #00ff41,
+        0 0 80px #008020,
+        4px 4px 0 #003300;
+    letter-spacing: 0.3em;
+    margin-bottom: 0.2em;
+    animation: titlePulse 2s ease-in-out infinite;
+}
+
+.title-sub {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 1.5rem;
+    color: #33ff77;
+    text-shadow: 0 0 10px #33ff77;
+    letter-spacing: 0.5em;
+    margin-bottom: 1em;
+}
+
+.title-location {
+    font-family: 'VT323', monospace;
+    font-size: 2rem;
+    color: #ffaa00;
+    text-shadow: 0 0 15px #ffaa00;
+    letter-spacing: 0.3em;
+    margin-bottom: 2em;
+}
+
+.ascii-art {
+    font-family: 'VT323', monospace;
+    font-size: 1.2rem;
+    color: #00cc33;
+    text-shadow: 0 0 5px #00cc33;
+    line-height: 1.2;
+    margin: 1em 0 2em;
+}
+
+.title-info p {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.9rem;
+    margin: 0.5em 0;
+}
+
+.title-credits {
+    font-family: 'VT323', monospace;
+    font-size: 1.2rem;
+    color: #666;
+    margin-top: 2em !important;
+}
+
+.blink {
+    animation: blinkAnim 1s step-end infinite;
+}
+
+@keyframes blinkAnim {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+@keyframes titlePulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+}
+
+/* --- HUD --- */
+#hud {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 10;
+    pointer-events: none;
+}
+
+/* Compass */
+#hud-compass {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 300px;
+    height: 30px;
+    overflow: hidden;
+    background: rgba(0, 10, 0, 0.6);
+    border: 1px solid #00ff4180;
+    border-radius: 3px;
+}
+
+#compass-strip {
+    position: absolute;
+    white-space: nowrap;
+    font-size: 1.1rem;
+    color: #00ff41;
+    top: 5px;
+    left: 0;
+    text-shadow: 0 0 5px #00ff41;
+    transition: left 0.1s linear;
+}
+
+#compass-marker {
+    position: absolute;
+    top: -2px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #ff4444;
+    font-size: 0.8rem;
+    text-shadow: 0 0 5px #ff4444;
+}
+
+/* Left Panel */
+#hud-left {
+    position: absolute;
+    top: 50%;
+    left: 15px;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.hud-gauge {
+    background: rgba(0, 10, 0, 0.6);
+    border: 1px solid #00ff4140;
+    border-radius: 3px;
+    padding: 6px 10px;
+    min-width: 100px;
+}
+
+.gauge-label {
+    font-size: 0.85rem;
+    color: #00aa30;
+    display: block;
+    margin-bottom: 2px;
+    letter-spacing: 0.15em;
+}
+
+.gauge-value {
+    font-size: 1.6rem;
+    color: #00ff41;
+    text-shadow: 0 0 8px #00ff41;
+    font-weight: bold;
+}
+
+.gauge-unit {
+    font-size: 0.9rem;
+    color: #00aa30;
+    margin-left: 4px;
+}
+
+.gauge-bar-container {
+    width: 100%;
+    height: 4px;
+    background: #003300;
+    margin-top: 4px;
+    border-radius: 2px;
+}
+
+.gauge-bar {
+    height: 100%;
+    background: #00ff41;
+    border-radius: 2px;
+    transition: width 0.15s;
+    box-shadow: 0 0 6px #00ff41;
+}
+
+/* Right Panel */
+#hud-right {
+    position: absolute;
+    top: 50%;
+    right: 15px;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    text-align: right;
+}
+
+#hud-right .gauge-label {
+    text-align: right;
+}
+
+.health-bar-container {
+    width: 100%;
+    height: 8px;
+    background: #330000;
+    margin: 4px 0;
+    border-radius: 2px;
+}
+
+.health-bar {
+    height: 100%;
+    background: #00ff41;
+    border-radius: 2px;
+    transition: width 0.3s, background-color 0.3s;
+    box-shadow: 0 0 6px #00ff41;
+}
+
+.health-bar.warning { background: #ffaa00; box-shadow: 0 0 6px #ffaa00; }
+.health-bar.critical { background: #ff3333; box-shadow: 0 0 6px #ff3333; animation: healthBlink 0.5s infinite; }
+
+@keyframes healthBlink {
+    50% { opacity: 0.5; }
+}
+
+/* Crosshair */
+#hud-crosshair {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 60px;
+    height: 60px;
+}
+
+.cross-h, .cross-v {
+    position: absolute;
+    background: #00ff41;
+    box-shadow: 0 0 4px #00ff41;
+}
+
+.cross-h {
+    width: 20px;
+    height: 2px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.cross-h::before {
+    content: '';
+    position: absolute;
+    right: -40px;
+    width: 20px;
+    height: 2px;
+    background: #00ff41;
+    box-shadow: 0 0 4px #00ff41;
+}
+
+/* Position left segment to left side */
+#hud-crosshair .cross-h {
+    left: 0;
+}
+
+.cross-v {
+    width: 2px;
+    height: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.cross-v::before {
+    content: '';
+    position: absolute;
+    bottom: -40px;
+    width: 2px;
+    height: 20px;
+    background: #00ff41;
+    box-shadow: 0 0 4px #00ff41;
+}
+
+#hud-crosshair .cross-v {
+    top: 0;
+}
+
+.cross-circle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 10px;
+    height: 10px;
+    border: 1px solid #00ff4180;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+}
+
+/* Bottom: Minimap */
+#hud-bottom {
+    position: absolute;
+    bottom: 15px;
+    right: 15px;
+}
+
+#minimap-canvas {
+    border: 1px solid #00ff4160;
+    background: rgba(0, 10, 0, 0.7);
+    border-radius: 4px;
+}
+
+/* Damage Flash */
+#damage-flash {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(255, 0, 0, 0.4) 100%);
+    opacity: 0;
+    transition: opacity 0.1s;
+    pointer-events: none;
+    z-index: 11;
+}
+
+#damage-flash.active {
+    opacity: 1;
+}
+
+/* Notifications */
+#hud-notifications {
+    position: absolute;
+    top: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+}
+
+.notification {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.7rem;
+    color: #ffaa00;
+    text-shadow: 0 0 10px #ffaa00;
+    padding: 4px 12px;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 3px;
+    margin-bottom: 5px;
+    animation: notifFade 3s forwards;
+}
+
+@keyframes notifFade {
+    0% { opacity: 0; transform: translateY(-10px); }
+    10% { opacity: 1; transform: translateY(0); }
+    80% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+/* --- Pause Screen --- */
+#pause-screen {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 50;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #00ff41;
+}
+
+#pause-screen h2 {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 2rem;
+    text-shadow: 0 0 20px #00ff41;
+    margin-bottom: 1em;
+    letter-spacing: 0.2em;
+}
+
+#pause-screen p {
+    font-size: 1.4rem;
+    color: #00aa30;
+    margin-bottom: 2em;
+}
+
+.controls-help {
+    background: rgba(0, 30, 0, 0.5);
+    border: 1px solid #00ff4140;
+    border-radius: 5px;
+    padding: 20px 30px;
+}
+
+.controls-help h3 {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.8rem;
+    color: #33ff77;
+    margin-bottom: 1em;
+    letter-spacing: 0.3em;
+}
+
+.controls-help table {
+    border-collapse: collapse;
+}
+
+.controls-help td {
+    padding: 4px 15px;
+    font-size: 1.2rem;
+}
+
+.controls-help td:first-child {
+    color: #ffaa00;
+    text-align: right;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.65rem;
+    padding-right: 20px;
+}
+
+/* Scanlines overlay (subtle) */
+#game-container::after {
+    content: '';
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.03) 2px,
+        rgba(0, 0, 0, 0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 2;
+}

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LHX Castelbolognese — Attack Chopper</title>
+    <meta name="description" content="Retro helicopter flight simulator over Castel Bolognese, inspired by LHX Attack Chopper (1990)">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+    <!-- Game Canvas Container -->
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+    </div>
+
+    <!-- Title Screen -->
+    <div id="title-screen">
+        <div class="title-content">
+            <div class="title-logo">
+                <h1 class="title-main">LHX</h1>
+                <h2 class="title-sub">ATTACK CHOPPER</h2>
+                <div class="title-location">— CASTELBOLOGNESE —</div>
+            </div>
+            <div class="title-helicopter-art">
+                <pre class="ascii-art">
+      _______________
+     /               \
+    /    ___     ___   \
+===|====/   \===/   \===|====&gt;&gt;&gt;
+    \   \___/   \___/  /
+     \_______________/
+          |     |
+         _|_____|_
+        |_________|
+                </pre>
+            </div>
+            <div class="title-info">
+                <p class="blink">PRESS ENTER TO START</p>
+                <p class="title-credits">Inspired by LHX Attack Chopper (EA, 1990)</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- HUD Overlay -->
+    <div id="hud" class="hidden">
+        <!-- Top bar: compass -->
+        <div id="hud-compass">
+            <div id="compass-strip">N · · · NE · · · E · · · SE · · · S · · · SW · · · W · · · NW · · · N</div>
+            <div id="compass-marker">▼</div>
+        </div>
+
+        <!-- Left panel -->
+        <div id="hud-left">
+            <div class="hud-gauge" id="hud-altitude">
+                <span class="gauge-label">ALT</span>
+                <span class="gauge-value" id="val-altitude">0</span>
+                <span class="gauge-unit">m</span>
+                <div class="gauge-bar-container">
+                    <div class="gauge-bar" id="bar-altitude"></div>
+                </div>
+            </div>
+            <div class="hud-gauge" id="hud-speed">
+                <span class="gauge-label">SPD</span>
+                <span class="gauge-value" id="val-speed">0</span>
+                <span class="gauge-unit">km/h</span>
+            </div>
+            <div class="hud-gauge" id="hud-vspeed">
+                <span class="gauge-label">VS</span>
+                <span class="gauge-value" id="val-vspeed">0</span>
+                <span class="gauge-unit">m/s</span>
+            </div>
+        </div>
+
+        <!-- Right panel -->
+        <div id="hud-right">
+            <div class="hud-gauge" id="hud-weapon">
+                <span class="gauge-label" id="val-weapon-name">CANNON</span>
+                <span class="gauge-value" id="val-ammo">500</span>
+            </div>
+            <div class="hud-gauge" id="hud-health">
+                <span class="gauge-label">HULL</span>
+                <div class="health-bar-container">
+                    <div class="health-bar" id="bar-health"></div>
+                </div>
+                <span class="gauge-value" id="val-health">100</span>
+                <span class="gauge-unit">%</span>
+            </div>
+        </div>
+
+        <!-- Center crosshair -->
+        <div id="hud-crosshair">
+            <div class="cross-h"></div>
+            <div class="cross-v"></div>
+            <div class="cross-circle"></div>
+        </div>
+
+        <!-- Bottom: minimap -->
+        <div id="hud-bottom">
+            <canvas id="minimap-canvas" width="180" height="180"></canvas>
+        </div>
+
+        <!-- Damage flash -->
+        <div id="damage-flash"></div>
+
+        <!-- Screen shake container -->
+        <div id="screen-shake"></div>
+
+        <!-- Notifications -->
+        <div id="hud-notifications"></div>
+    </div>
+
+    <!-- Pause Screen -->
+    <div id="pause-screen" class="hidden">
+        <h2>— PAUSED —</h2>
+        <p>Press P or ESC to resume</p>
+        <div class="controls-help">
+            <h3>CONTROLS</h3>
+            <table>
+                <tr><td>W / S</td><td>Pitch forward / back</td></tr>
+                <tr><td>A / D</td><td>Roll left / right</td></tr>
+                <tr><td>Q / E</td><td>Yaw left / right</td></tr>
+                <tr><td>SHIFT / CTRL</td><td>Throttle up / down</td></tr>
+                <tr><td>SPACE</td><td>Fire weapon</td></tr>
+                <tr><td>1 / 2</td><td>Select Cannon / Missiles</td></tr>
+                <tr><td>C</td><td>Camera view</td></tr>
+                <tr><td>P / ESC</td><td>Pause</td></tr>
+            </table>
+        </div>
+    </div>
+
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
