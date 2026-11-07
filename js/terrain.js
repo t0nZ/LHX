@@ -26,7 +26,21 @@ const COLORS = {
     courtyard: 0xaa9977, // Building courtyard
     water:     0x3366aa, // River/canal
     dirt:      0x887755, // Dirt path
+    rock:      0x8a8070, // Hill rock
+    forest:    0x2f5a25, // Hill woods
 };
+
+// Helipad (player base) — flat area south of the town
+export const HELIPAD = { x: -40, z: -280, r: 14 };
+
+// Foothills of the Apennines to the south (+z)
+function hillHeight(x, z) {
+    const t = Math.max(0, (z - 420) / 500);
+    if (t <= 0) return 0;
+    const ramp = t * t * (3 - 2 * t);
+    const n = 0.55 + 0.45 * Math.sin(x * 0.011 + 1.7) * Math.cos(z * 0.013) + 0.25 * Math.sin(x * 0.027 + z * 0.019);
+    return ramp * Math.max(0, n) * 95;
+}
 
 // Check if a point is on a road
 function isOnViaEmilia(x, z) {
@@ -104,6 +118,11 @@ function getTerrainColor(x, z) {
     
     if (isInCentroStorico(x, z)) return COLORS.courtyard;
     
+    // Foothills
+    const hh = hillHeight(x, z);
+    if (hh > 55) return COLORS.rock;
+    if (hh > 28) return COLORS.forest;
+
     // Countryside: patchwork of fields
     const fieldNoise = Math.sin(x * 0.01) * Math.cos(z * 0.012) +
                        Math.sin(x * 0.005 + 1.3) * Math.cos(z * 0.007 + 0.7);
@@ -128,6 +147,15 @@ function getTerrainHeight(x, z) {
         h -= (1 - riverDist / 30) * 3;
     }
     
+    h += hillHeight(x, z);
+
+    // Helipad plateau
+    const pd = Math.hypot(x - HELIPAD.x, z - HELIPAD.z);
+    if (pd < 40) {
+        const f = pd < 22 ? 1 : 1 - (pd - 22) / 18;
+        h = h * (1 - f);
+    }
+
     // Roads are flat
     if (isOnViaEmilia(x, z) || isOnViaCalandrini(x, z)) h = 0;
     if (isInCentroStorico(x, z)) h = 0;
@@ -167,10 +195,11 @@ export function initTerrain(gameState) {
             const g = Math.max(0, Math.min(1, color.g + variation));
             const b = Math.max(0, Math.min(1, color.b + variation));
             
-            // Triangle 1: (x0,z0), (x1,z0), (x0,z1)
-            vertices.push(x0, y00, z0,  x1, y10, z0,  x0, y01, z1);
-            // Triangle 2: (x1,z0), (x1,z1), (x0,z1)
-            vertices.push(x1, y10, z0,  x1, y11, z1,  x0, y01, z1);
+            // Counter-clockwise when seen from above so the faces point UP
+            // Triangle 1: (x0,z0), (x0,z1), (x1,z0)
+            vertices.push(x0, y00, z0,  x0, y01, z1,  x1, y10, z0);
+            // Triangle 2: (x1,z0), (x0,z1), (x1,z1)
+            vertices.push(x1, y10, z0,  x0, y01, z1,  x1, y11, z1);
             
             // Same color for both triangles (flat shading per cell)
             for (let v = 0; v < 6; v++) {
@@ -178,8 +207,8 @@ export function initTerrain(gameState) {
             }
             
             // Compute face normals
-            const n1 = computeFaceNormal(x0,y00,z0, x1,y10,z0, x0,y01,z1);
-            const n2 = computeFaceNormal(x1,y10,z0, x1,y11,z1, x0,y01,z1);
+            const n1 = computeFaceNormal(x0,y00,z0, x0,y01,z1, x1,y10,z0);
+            const n2 = computeFaceNormal(x1,y10,z0, x0,y01,z1, x1,y11,z1);
             for (let v = 0; v < 3; v++) normals.push(n1.x, n1.y, n1.z);
             for (let v = 0; v < 3; v++) normals.push(n2.x, n2.y, n2.z);
         }
@@ -199,6 +228,9 @@ export function initTerrain(gameState) {
     gameState.scene.add(mesh);
     gameState.terrain = mesh;
     
+    createHelipad(gameState);
+    gameState.helipad = HELIPAD;
+
     // Store utility functions in gameState
     gameState.world = {
         size: WORLD_SIZE,
@@ -209,6 +241,31 @@ export function initTerrain(gameState) {
         isPiazza: isPiazza,
         roadPaths: generateRoadPaths(),
     };
+}
+
+function createHelipad(gameState) {
+    const c = document.createElement('canvas');
+    c.width = 64; c.height = 64;
+    const g = c.getContext('2d');
+    g.fillStyle = '#5a5a5a';
+    g.fillRect(0, 0, 64, 64);
+    g.strokeStyle = '#ffd800';
+    g.lineWidth = 4;
+    g.beginPath(); g.arc(32, 32, 28, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = '#ffffff';
+    g.fillRect(20, 16, 6, 32);
+    g.fillRect(38, 16, 6, 32);
+    g.fillRect(20, 29, 24, 6);
+    const tex = new THREE.CanvasTexture(c);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const geo = new THREE.CircleGeometry(HELIPAD.r, 20);
+    geo.rotateX(-Math.PI / 2);
+    const mat = new THREE.MeshBasicMaterial({ map: tex, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    const pad = new THREE.Mesh(geo, mat);
+    pad.position.set(HELIPAD.x, getTerrainHeight(HELIPAD.x, HELIPAD.z) + 0.25, HELIPAD.z);
+    gameState.scene.add(pad);
 }
 
 function computeFaceNormal(x0,y0,z0, x1,y1,z1, x2,y2,z2) {

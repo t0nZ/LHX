@@ -132,11 +132,12 @@ function createBuilding(gameState, def) {
     
     // Main building body
     const bodyGeo = new THREE.BoxGeometry(def.w, def.h, def.d);
-    const bodyMat = new THREE.MeshLambertMaterial({
-        color: def.color,
-        flatShading: true,
-    });
-    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    const tex = getWindowTexture().clone();
+    tex.repeat.set(Math.max(1, Math.round(Math.max(def.w, def.d) / 5)), Math.max(1, Math.round(def.h / 4)));
+    tex.needsUpdate = true;
+    const sideMat = new THREE.MeshLambertMaterial({ color: def.color, flatShading: true, map: tex });
+    const topMat = new THREE.MeshLambertMaterial({ color: def.color, flatShading: true });
+    const body = new THREE.Mesh(bodyGeo, [sideMat, sideMat, topMat, topMat, sideMat, sideMat]);
     body.position.y = def.h / 2;
     group.add(body);
     
@@ -185,6 +186,29 @@ function createBuilding(gameState, def) {
     });
 }
 
+let _winTex = null;
+function getWindowTexture() {
+    if (_winTex) return _winTex;
+    const c = document.createElement('canvas');
+    c.width = 16; c.height = 16;
+    const g = c.getContext('2d');
+    g.fillStyle = '#ffffff';
+    g.fillRect(0, 0, 16, 16);
+    g.fillStyle = '#3c4a5a';
+    g.fillRect(4, 3, 8, 8);
+    g.fillStyle = '#8aa4b8';
+    g.fillRect(4, 3, 8, 2);
+    g.fillStyle = '#d8d0c0';
+    g.fillRect(7, 3, 2, 8);
+    const t = new THREE.CanvasTexture(c);
+    t.magFilter = THREE.NearestFilter;
+    t.minFilter = THREE.NearestFilter;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.colorSpace = THREE.SRGBColorSpace;
+    _winTex = t;
+    return t;
+}
+
 function createGableRoofGeo(width, height, depth) {
     const hw = width / 2;
     const hd = depth / 2;
@@ -221,8 +245,7 @@ export function updateBuildings(gameState) {
         if (b.flashTimer > 0) {
             b.flashTimer -= dt;
             if (b.flashTimer <= 0) {
-                b.body.material.color.set(b.originalColor);
-                b.body.material.emissive.set(0x000000);
+                for (const m of b.body.material) { m.color.set(b.originalColor); m.emissive.set(0x000000); }
             }
         }
     }
@@ -234,8 +257,7 @@ export function damageBuilding(gameState, building, damage) {
     building.health -= damage;
     
     // Flash red on hit
-    building.body.material.color.set(0xff4444);
-    building.body.material.emissive.set(0x441111);
+    for (const m of building.body.material) { m.color.set(0xff4444); m.emissive.set(0x441111); }
     building.flashTimer = 0.15;
     
     if (building.health <= 0) {
@@ -282,6 +304,9 @@ function destroyBuilding(gameState, building) {
         );
     }
     
+    if (gameState.audio) gameState.audio.playExplosion(2.5);
+    if (gameState.onBuildingDestroyed) gameState.onBuildingDestroyed(building);
+
     // Notification
     showNotification(gameState, `${building.name} DESTROYED!`);
 }

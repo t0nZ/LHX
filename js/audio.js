@@ -30,6 +30,9 @@ export function initAudio(gameState) {
         playShot: () => playCannonShot(),
         playMissile: () => playMissileLaunch(),
         playExplosion: (size) => playExplosion(size),
+        playHit: () => playHit(),
+        playEnemyFire: (heavy) => playEnemyFire(heavy),
+        playBeep: (freq, dur) => playBeep(freq, dur),
     };
 }
 
@@ -176,20 +179,52 @@ export function updateAudio(gameState) {
     // Modulate rotor volume based on engine state
     const targetVol = h.engineRunning ? 0.12 + h.collective * 0.08 : 0;
     rotorGain.gain.setTargetAtTime(targetVol, audioCtx.currentTime, 0.1);
-    
-    // Play weapon sounds (triggered by fire events)
-    const w = gameState.weapons;
-    if (w && w.types[w.selected]) {
-        const weapon = w.types[w.selected];
-        if (gameState.input.keys['Space'] && weapon.ammo > 0) {
-            const now = gameState.time;
-            if (now - weapon.lastFired < weapon.fireRate * 1.1) {
-                if (weapon.type === 'cannon') {
-                    playCannonShot();
-                } else {
-                    playMissileLaunch();
-                }
-            }
-        }
-    }
+}
+
+// ---- One-shot SFX ----
+function playHit() {
+    if (!audioCtx) return;
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(180, now);
+    osc.frequency.exponentialRampToValueAtTime(40, now + 0.2);
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.25, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+    osc.connect(gain);
+    gain.connect(masterGain);
+    osc.start(now);
+    osc.stop(now + 0.25);
+}
+
+function playEnemyFire(heavy) {
+    if (!audioCtx) return;
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    osc.type = heavy ? 'sawtooth' : 'square';
+    osc.frequency.setValueAtTime(heavy ? 120 : 300, now);
+    osc.frequency.exponentialRampToValueAtTime(heavy ? 35 : 120, now + 0.12);
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(heavy ? 0.12 : 0.05, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    osc.connect(gain);
+    gain.connect(masterGain);
+    osc.start(now);
+    osc.stop(now + 0.18);
+}
+
+function playBeep(freq = 880, dur = 0.08) {
+    if (!audioCtx) return;
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    osc.type = 'square';
+    osc.frequency.value = freq;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.08, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+    osc.connect(gain);
+    gain.connect(masterGain);
+    osc.start(now);
+    osc.stop(now + dur + 0.02);
 }

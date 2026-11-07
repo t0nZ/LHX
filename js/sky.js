@@ -43,6 +43,7 @@ export function initSky(gameState) {
         vertexColors: true,
         side: THREE.BackSide,
         depthWrite: false,
+        fog: false,
     });
     const sky = new THREE.Mesh(skyGeo, skyMat);
     sky.renderOrder = -1;
@@ -50,15 +51,45 @@ export function initSky(gameState) {
     gameState.sky = sky;
 
     // Fog — mimics the LHX draw distance effect
-    scene.fog = new THREE.Fog(0xb3c8d9, 300, 2200);
+    scene.fog = new THREE.Fog(0xb3c8d9, 350, 1900);
+
+    // Sun disc
+    const sunMesh = new THREE.Mesh(
+        new THREE.CircleGeometry(150, 12),
+        new THREE.MeshBasicMaterial({ color: 0xfff0b0, fog: false, depthWrite: false })
+    );
+    sunMesh.position.set(0.55, 0.42, 0.35).normalize().multiplyScalar(3500);
+    sunMesh.lookAt(0, 0, 0);
+    sky.add(sunMesh);
+
+    // Low-poly clouds
+    const cloudGeo = new THREE.IcosahedronGeometry(1, 0);
+    const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.92, fog: false });
+    const clouds = new THREE.Group();
+    let cs = 7;
+    const crand = () => { cs = (cs * 16807) % 2147483647; return cs / 2147483647; };
+    for (let i = 0; i < 34; i++) {
+        const cluster = new THREE.Group();
+        const puffs = 3 + Math.floor(crand() * 3);
+        for (let j = 0; j < puffs; j++) {
+            const puff = new THREE.Mesh(cloudGeo, cloudMat);
+            puff.scale.set(40 + crand() * 50, 12 + crand() * 8, 30 + crand() * 30);
+            puff.position.set(j * 45 - puffs * 20, crand() * 8, (crand() - 0.5) * 30);
+            cluster.add(puff);
+        }
+        cluster.position.set((crand() - 0.5) * 3600, 380 + crand() * 160, (crand() - 0.5) * 3600);
+        clouds.add(cluster);
+    }
+    scene.add(clouds);
+    gameState.clouds = clouds;
 
     // Ambient light — soft overall illumination
-    const ambient = new THREE.AmbientLight(0x8899aa, 0.7);
+    const ambient = new THREE.AmbientLight(0x9aa8bb, 1.15);
     scene.add(ambient);
 
     // Directional light — sun
     const sun = new THREE.DirectionalLight(0xfff4e0, 1.2);
-    sun.position.set(300, 500, 200);
+    sun.position.set(550, 420, 350);
     sun.castShadow = false; // No shadows for retro look
     scene.add(sun);
     gameState.sun = sun;
@@ -70,9 +101,14 @@ export function initSky(gameState) {
 }
 
 export function updateSky(gameState) {
+    if (gameState.clouds) {
+        gameState.clouds.position.x += gameState.delta * 4;
+        if (gameState.clouds.position.x > 1800) gameState.clouds.position.x = -1800;
+    }
     // Sky follows camera position (infinite sky effect)
     if (gameState.camera) {
         gameState.sky.position.x = gameState.camera.position.x;
         gameState.sky.position.z = gameState.camera.position.z;
+        gameState.sky.position.y = 0;
     }
 }

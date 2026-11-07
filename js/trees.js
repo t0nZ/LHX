@@ -46,7 +46,7 @@ export function initTrees(gameState) {
     ];
     
     const trunkInstanced = new THREE.InstancedMesh(trunkGeo, trunkMat, TREE_COUNT);
-    const canopyInstanced = new THREE.InstancedMesh(canopyGeo, canopyMats[0], TREE_COUNT);
+    const canopyInstanced = new THREE.InstancedMesh(canopyGeo, new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true }), TREE_COUNT);
     
     const dummy = new THREE.Object3D();
     const treePositions = [];

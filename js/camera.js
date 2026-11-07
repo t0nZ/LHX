@@ -8,8 +8,9 @@ const MODES = ['CHASE', 'COCKPIT', 'TOP'];
 const LERP_SPEED = 4.0;
 
 // Chase camera offsets
-const CHASE_OFFSET = new THREE.Vector3(0, 8, -18);
-const COCKPIT_OFFSET = new THREE.Vector3(0, 1.0, 2.5);
+const CHASE_OFFSET = new THREE.Vector3(0, 7, -20);
+const COCKPIT_OFFSET = new THREE.Vector3(0, 1.4, 2.0);
+const UP = new THREE.Vector3(0, 1, 0);
 
 export function initCamera(gameState) {
     const camera = new THREE.PerspectiveCamera(
@@ -21,12 +22,7 @@ export function initCamera(gameState) {
     camera.position.set(0, 70, -320);
     gameState.camera = camera;
     
-    // Handle resize
-    window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        gameState.renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+    // Resize is handled in retro.js (low-res render target)
     
     gameState.cameraMode = MODES[cameraMode];
 }
@@ -41,8 +37,9 @@ export function updateCamera(gameState) {
     
     if (gameState.cameraMode === 'CHASE') {
         // Third-person chase cam
+        h.group.visible = h.alive;
         const offset = CHASE_OFFSET.clone();
-        offset.applyQuaternion(h.group.quaternion);
+        offset.applyAxisAngle(UP, h.yaw);
         const targetPos = h.position.clone().add(offset);
         
         // Don't go below ground
@@ -53,12 +50,13 @@ export function updateCamera(gameState) {
         
         // Look at helicopter, slightly ahead
         const lookTarget = h.position.clone();
-        const forward = new THREE.Vector3(0, 0, 5).applyQuaternion(h.group.quaternion);
+        const forward = new THREE.Vector3(0, 2, 12).applyAxisAngle(UP, h.yaw);
         lookTarget.add(forward);
         camera.lookAt(lookTarget);
         
     } else if (gameState.cameraMode === 'COCKPIT') {
-        // First-person cockpit view
+        // First-person cockpit view (hide own model)
+        h.group.visible = false;
         const offset = COCKPIT_OFFSET.clone();
         offset.applyQuaternion(h.group.quaternion);
         const targetPos = h.position.clone().add(offset);
@@ -71,6 +69,7 @@ export function updateCamera(gameState) {
         
     } else if (gameState.cameraMode === 'TOP') {
         // Top-down tactical view
+        h.group.visible = h.alive;
         const targetPos = new THREE.Vector3(
             h.position.x,
             h.position.y + 100,

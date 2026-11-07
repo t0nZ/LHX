@@ -2,6 +2,9 @@
 // HELICOPTER.JS — LHX Helicopter Model & Physics
 // ============================================
 import * as THREE from 'three';
+import { checkBuildingCollision } from './buildings.js';
+import { triggerScreenShake } from './effects.js';
+import { triggerDamageFlash } from './retro.js';
 
 // Physics constants
 const GRAVITY = 9.81;
@@ -52,7 +55,7 @@ export function initHelicopter(gameState) {
     bodyGeo.setAttribute('position', new THREE.BufferAttribute(bodyVerts, 3));
     bodyGeo.computeVertexNormals();
     
-    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x4a5a3a, flatShading: true });
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x6f8452, flatShading: true, side: THREE.DoubleSide });
     const body = new THREE.Mesh(bodyGeo, bodyMat);
     heli.add(body);
     
@@ -73,7 +76,7 @@ export function initHelicopter(gameState) {
     ]);
     tailGeo.setAttribute('position', new THREE.BufferAttribute(tailVerts, 3));
     tailGeo.computeVertexNormals();
-    const tailMat = new THREE.MeshLambertMaterial({ color: 0x3d4d2d, flatShading: true });
+    const tailMat = new THREE.MeshLambertMaterial({ color: 0x5d7046, flatShading: true, side: THREE.DoubleSide });
     const tail = new THREE.Mesh(tailGeo, tailMat);
     heli.add(tail);
     
@@ -188,7 +191,7 @@ export function initHelicopter(gameState) {
     heli.scale.set(1.5, 1.5, 1.5);
     
     // Position at spawn point
-    heli.position.set(0, 60, -300);
+    heli.position.set(-40, 30, -280);
     
     gameState.scene.add(heli);
     
@@ -204,7 +207,7 @@ export function initHelicopter(gameState) {
         angularVelocity: new THREE.Vector3(0, 0, 0),
         
         // Control inputs (0-1 or -1 to 1)
-        collective: 0.5,   // Start with some lift
+        collective: 0.5,   // 0.5 = hover
         pitchInput: 0,
         rollInput: 0,
         yawInput: 0,
@@ -214,8 +217,11 @@ export function initHelicopter(gameState) {
         roll: 0,
         yaw: 0,
         speed: 0,
-        altitude: 60,
+        altitude: 30,
         health: 100,
+        maxHealth: 100,
+        alive: true,
+        onGround: false,
         rotorSpeed: 0,
         
         // Weapon state
@@ -226,101 +232,153 @@ export function initHelicopter(gameState) {
     };
 }
 
+// ---- Flight model (arcade): heading + climb + forward/strafe thrust ----
+const ACC_FORWARD = 32;      // m/s^2 forward thrust
+const ACC_STRAFE = 20;
+const CLIMB_SPEED = 14;      // m/s
+const MAX_ALTITUDE = 450;
+const GROUND_CLEARANCE = 1.3;
+const WORLD_HALF = 950;
+
+let hitCooldown = 0;
+
 export function updateHelicopter(gameState) {
     const h = gameState.helicopter;
     const input = gameState.input;
     const dt = gameState.delta;
     if (!h || !h.group || dt <= 0) return;
-    
-    // --- Process inputs ---
-    // Collective (throttle)
-    if (input.keys['ShiftLeft'] || input.keys['ShiftRight']) {
-        h.collective = Math.min(1.0, h.collective + dt * 0.5);
-    }
-    if (input.keys['ControlLeft'] || input.keys['ControlRight']) {
-        h.collective = Math.max(0, h.collective - dt * 0.5);
-    }
-    
-    // Cyclic (pitch/roll)
-    h.pitchInput = 0;
-    h.rollInput = 0;
-    h.yawInput = 0;
-    
-    if (input.keys['KeyW'] || input.keys['ArrowUp'])    h.pitchInput =  1;
-    if (input.keys['KeyS'] || input.keys['ArrowDown'])  h.pitchInput = -1;
-    if (input.keys['KeyA'] || input.keys['ArrowLeft'])  h.rollInput  = -1;
-    if (input.keys['KeyD'] || input.keys['ArrowRight']) h.rollInput  =  1;
-    if (input.keys['KeyQ'])  h.yawInput = -1;
-    if (input.keys['KeyE'])  h.yawInput =  1;
-    
-    // --- Apply rotations ---
-    h.pitch += h.pitchInput * PITCH_RATE * dt;
-    h.roll  += h.rollInput  * ROLL_RATE  * dt;
-    h.yaw   += h.yawInput   * YAW_RATE   * dt;
-    
-    // Dampen rotations
-    h.pitch *= (1 - 2.0 * dt);
-    h.roll  *= (1 - 2.0 * dt);
-    
-    // Clamp
-    h.pitch = THREE.MathUtils.clamp(h.pitch, -MAX_PITCH, MAX_PITCH);
-    h.roll  = THREE.MathUtils.clamp(h.roll,  -MAX_ROLL,  MAX_ROLL);
-    
-    // --- Physics ---
-    // Build rotation quaternion
-    const euler = new THREE.Euler(h.pitch, h.yaw, h.roll, 'YXZ');
-    h.group.rotation.copy(euler);
-    
-    // Lift force (along helicopter's up vector)
-    const upVector = new THREE.Vector3(0, 1, 0).applyQuaternion(h.group.quaternion);
-    const liftForce = h.collective * COLLECTIVE_POWER;
-    
-    // Forward force from tilting
-    const forwardVector = new THREE.Vector3(0, 0, 1).applyQuaternion(h.group.quaternion);
-    const sideVector = new THREE.Vector3(1, 0, 0).applyQuaternion(h.group.quaternion);
-    
-    // Apply forces
-    h.velocity.x += upVector.x * liftForce * dt;
-    h.velocity.y += (upVector.y * liftForce - GRAVITY) * dt;
-    h.velocity.z += upVector.z * liftForce * dt;
-    
-    // Drag
-    h.velocity.multiplyScalar(Math.pow(DRAG, dt * 60));
-    
-    // Clamp speed
-    const speed = h.velocity.length();
-    if (speed > MAX_SPEED) {
-        h.velocity.multiplyScalar(MAX_SPEED / speed);
-    }
-    
-    // Update position
-    h.position.add(h.velocity.clone().multiplyScalar(dt));
-    
-    // Ground collision
+    if (!h.alive) return;
+
+    const k = input.keys;
+    hitCooldown = Math.max(0, hitCooldown - dt);
+
+    // --- Inputs ---
+    const fwd    = ((k['KeyW'] || k['ArrowUp']) ? 1 : 0) - ((k['KeyS'] || k['ArrowDown']) ? 1 : 0);
+    const turn   = ((k['KeyD'] || k['ArrowRight']) ? 1 : 0) - ((k['KeyA'] || k['ArrowLeft']) ? 1 : 0); // + = right
+    const strafe = (k['KeyE'] ? 1 : 0) - (k['KeyQ'] ? 1 : 0);                                        // + = right
+    const climb  = ((k['ShiftLeft'] || k['ShiftRight'] || k['KeyR']) ? 1 : 0)
+                 - ((k['ControlLeft'] || k['ControlRight'] || k['KeyF']) ? 1 : 0);
+
+    h.pitchInput = fwd; h.rollInput = turn; h.yawInput = strafe;
+
+    // --- Heading (turning right decreases yaw: model faces +Z, +X is its left) ---
+    h.yaw -= turn * YAW_RATE * dt;
+    const sinY = Math.sin(h.yaw), cosY = Math.cos(h.yaw);
+    const fX = sinY, fZ = cosY;     // forward
+    const rX = -cosY, rZ = sinY;    // right
+
+    // --- Horizontal thrust + drag ---
+    const thrustF = fwd > 0 ? fwd * ACC_FORWARD : fwd * ACC_FORWARD * 0.6;
+    const thrustS = strafe * ACC_STRAFE;
+    const hasInput = fwd !== 0 || strafe !== 0;
+    const drag = hasInput ? 0.55 : 1.4;
+    h.velocity.x += (fX * thrustF + rX * thrustS - h.velocity.x * drag) * dt;
+    h.velocity.z += (fZ * thrustF + rZ * thrustS - h.velocity.z * drag) * dt;
+
+    // --- Vertical: climb/descend command, otherwise auto-hover ---
+    let climbCmd = climb;
+    if (h.altitude > MAX_ALTITUDE && climbCmd > 0) climbCmd = 0;
+    const targetVy = climbCmd * CLIMB_SPEED;
+    h.velocity.y += (targetVy - h.velocity.y) * Math.min(1, dt * 2.5);
+    h.collective = THREE.MathUtils.clamp(0.5 + h.velocity.y / 30, 0, 1);
+
+    // --- Integrate ---
+    const preVy = h.velocity.y;
+    h.position.addScaledVector(h.velocity, dt);
+
+    // --- Ground ---
     const groundHeight = gameState.world ? gameState.world.getHeight(h.position.x, h.position.z) : 0;
-    if (h.position.y < groundHeight + 1.5) {
-        h.position.y = groundHeight + 1.5;
+    h.onGround = false;
+    if (h.position.y < groundHeight + GROUND_CLEARANCE) {
+        h.position.y = groundHeight + GROUND_CLEARANCE;
+        if (preVy < -9) damagePlayer(gameState, (-preVy - 9) * 6, 'ground');
         h.velocity.y = Math.max(0, h.velocity.y);
-        // Dampen horizontal velocity when on ground
-        h.velocity.x *= 0.95;
-        h.velocity.z *= 0.95;
+        h.velocity.x *= 0.92;
+        h.velocity.z *= 0.92;
+        h.onGround = true;
     }
-    
-    // Update derived values
-    h.altitude = h.position.y - groundHeight;
-    h.speed = Math.sqrt(h.velocity.x ** 2 + h.velocity.z ** 2) * 3.6; // m/s to km/h
-    
-    // --- Animate rotors ---
-    const targetRotorSpeed = h.engineRunning ? 15 + h.collective * 10 : 0;
+
+    // --- Buildings ---
+    const b = checkBuildingCollision(gameState, h.position, 2.4);
+    if (b) {
+        const topY = b.position.y + b.height;
+        const impact = Math.hypot(h.velocity.x, h.velocity.y, h.velocity.z);
+        if (h.position.y > topY - 1.5) {
+            // Roof landing
+            h.position.y = topY + GROUND_CLEARANCE + 0.2;
+            h.velocity.y = Math.max(0, h.velocity.y);
+            h.onGround = true;
+        } else {
+            const nx = (h.position.x - b.position.x) / (b.width / 2 + 2.4);
+            const nz = (h.position.z - b.position.z) / (b.depth / 2 + 2.4);
+            if (Math.abs(nx) > Math.abs(nz)) {
+                h.position.x = b.position.x + Math.sign(nx || 1) * (b.width / 2 + 2.5);
+                h.velocity.x *= -0.3;
+            } else {
+                h.position.z = b.position.z + Math.sign(nz || 1) * (b.depth / 2 + 2.5);
+                h.velocity.z *= -0.3;
+            }
+            if (hitCooldown <= 0 && impact > 6) {
+                hitCooldown = 0.6;
+                damagePlayer(gameState, Math.min(35, impact * 0.7), 'building');
+                if (gameState.createExplosion) gameState.createExplosion(h.position.clone(), 1.5, 'cannon');
+            }
+        }
+    }
+
+    // --- World bounds (soft wall) ---
+    h.position.x = THREE.MathUtils.clamp(h.position.x, -WORLD_HALF, WORLD_HALF);
+    h.position.z = THREE.MathUtils.clamp(h.position.z, -WORLD_HALF, WORLD_HALF);
+
+    // --- Derived values ---
+    const gh = gameState.world ? gameState.world.getHeight(h.position.x, h.position.z) : 0;
+    h.altitude = Math.max(0, h.position.y - gh);
+    h.speed = Math.hypot(h.velocity.x, h.velocity.z) * 3.6;
+
+    // --- Attitude (visual): nose-down when accelerating, bank when turning/strafing ---
+    const vForward = h.velocity.x * fX + h.velocity.z * fZ;
+    const vSide = h.velocity.x * rX + h.velocity.z * rZ;
+    const targetPitch = h.onGround ? 0 : THREE.MathUtils.clamp(vForward / 55 * 0.45, -0.22, 0.45);
+    const targetRoll = h.onGround ? 0 : THREE.MathUtils.clamp(turn * 0.5 + vSide / 40 * 0.35, -0.75, 0.75);
+    const att = Math.min(1, dt * 4);
+    h.pitch += (targetPitch - h.pitch) * att;
+    h.roll  += (targetRoll  - h.roll)  * att;
+    h.group.rotation.set(h.pitch, h.yaw, h.roll, 'YXZ');
+
+    // --- Rotors ---
+    const targetRotorSpeed = h.engineRunning ? 18 + h.collective * 10 : 0;
     h.rotorSpeed = THREE.MathUtils.lerp(h.rotorSpeed, targetRotorSpeed, dt * 2);
-    
     h.rotorGroup.rotation.y += h.rotorSpeed * dt;
     h.tailRotorGroup.rotation.y += h.rotorSpeed * 1.5 * dt;
-    
-    // Keep world bounds
-    const worldHalf = 950;
-    h.position.x = THREE.MathUtils.clamp(h.position.x, -worldHalf, worldHalf);
-    h.position.z = THREE.MathUtils.clamp(h.position.z, -worldHalf, worldHalf);
+}
+
+// Heading vector on the ground plane (unit)
+export function getHeading(gameState) {
+    const yaw = gameState.helicopter.yaw;
+    return new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+}
+
+export function damagePlayer(gameState, amount, source = 'enemy') {
+    const h = gameState.helicopter;
+    if (!h || !h.alive || amount <= 0) return;
+    h.health = Math.max(0, h.health - amount);
+    triggerDamageFlash(gameState, Math.min(1, 0.4 + amount / 30));
+    triggerScreenShake(gameState, Math.min(2, amount / 10), 0.3);
+    if (gameState.audio) gameState.audio.playHit();
+    if (h.health <= 0) {
+        h.alive = false;
+        h.group.visible = false;
+        if (gameState.createExplosion) {
+            gameState.createExplosion(h.position.clone(), 6, 'missile');
+        }
+        if (gameState.audio) gameState.audio.playExplosion(3);
+        if (gameState.onPlayerDestroyed) gameState.onPlayerDestroyed(source);
+    }
+}
+
+export function repairPlayer(gameState, amount) {
+    const h = gameState.helicopter;
+    h.health = Math.min(h.maxHealth, h.health + amount);
 }
 
 export function getHelicopterForward(gameState) {
@@ -331,10 +389,4 @@ export function getHelicopterForward(gameState) {
 
 export function getHelicopterPosition(gameState) {
     return gameState.helicopter.position.clone();
-}
-
-export function getHelicopterDown(gameState) {
-    const down = new THREE.Vector3(0, -1, 0);
-    down.applyQuaternion(gameState.helicopter.group.quaternion);
-    return down;
 }

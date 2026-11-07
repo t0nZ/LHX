@@ -227,7 +227,7 @@ let shakeDuration = 0;
 let shakeTimer = 0;
 const originalCameraOffset = new THREE.Vector3();
 
-function triggerScreenShake(gameState, intensity, duration) {
+export function triggerScreenShake(gameState, intensity, duration) {
     shakeIntensity = Math.max(shakeIntensity, intensity);
     shakeDuration = Math.max(shakeDuration, duration);
     shakeTimer = 0;

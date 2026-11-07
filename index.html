@@ -47,7 +47,8 @@
             </div>
             <div class="title-info">
                 <p class="blink">PRESS ENTER TO START</p>
-                <p class="title-credits">Inspired by LHX Attack Chopper (EA, 1990)</p>
+                <p id="title-hiscore" class="title-hi">HI-SCORE 000000</p>
+                <p class="title-credits">Inspired by LHX Attack Chopper (EA, 1990) — W/A/S/D + SHIFT + SPACE</p>
             </div>
         </div>
     </div>
@@ -56,9 +57,32 @@
     <div id="hud" class="hidden">
         <!-- Top bar: compass -->
         <div id="hud-compass">
-            <div id="compass-strip">N · · · NE · · · E · · · SE · · · S · · · SW · · · W · · · NW · · · N</div>
-            <div id="compass-marker">▼</div>
+            <div id="compass-heading">000° N</div>
         </div>
+
+        <!-- Mission panel -->
+        <div id="hud-mission">
+            <div id="m-title">M1</div>
+            <div id="m-obj">HOSTILES: 0</div>
+            <div id="m-score">SCORE 000000</div>
+            <div id="m-lives">LIVES</div>
+        </div>
+
+        <!-- Target lock bracket -->
+        <div id="hud-lock" class="hidden">
+            <div class="lock-corner tl"></div><div class="lock-corner tr"></div>
+            <div class="lock-corner bl"></div><div class="lock-corner br"></div>
+            <div id="hud-lock-text"></div>
+        </div>
+
+        <!-- Nearest hostile arrow -->
+        <div id="hud-arrow" class="hidden">
+            <div id="hud-arrow-icon">▲</div>
+            <div id="hud-arrow-text"></div>
+        </div>
+
+        <!-- Helipad hint -->
+        <div id="hud-pad" class="hidden"></div>
 
         <!-- Left panel -->
         <div id="hud-left">
@@ -87,6 +111,7 @@
             <div class="hud-gauge" id="hud-weapon">
                 <span class="gauge-label" id="val-weapon-name">CANNON</span>
                 <span class="gauge-value" id="val-ammo">500</span>
+                <span class="gauge-unit" id="val-missiles"></span>
             </div>
             <div class="hud-gauge" id="hud-health">
                 <span class="gauge-label">HULL</span>
@@ -120,6 +145,15 @@
         <div id="hud-notifications"></div>
     </div>
 
+    <!-- Briefing / debriefing overlay -->
+    <div id="overlay" class="hidden">
+        <div id="overlay-box">
+            <h2 id="overlay-title"></h2>
+            <div id="overlay-body"></div>
+            <p id="overlay-prompt" class="blink"></p>
+        </div>
+    </div>
+
     <!-- Pause Screen -->
     <div id="pause-screen" class="hidden">
         <h2>— PAUSED —</h2>
@@ -127,12 +161,13 @@
         <div class="controls-help">
             <h3>CONTROLS</h3>
             <table>
-                <tr><td>W / S</td><td>Pitch forward / back</td></tr>
-                <tr><td>A / D</td><td>Roll left / right</td></tr>
-                <tr><td>Q / E</td><td>Yaw left / right</td></tr>
-                <tr><td>SHIFT / CTRL</td><td>Throttle up / down</td></tr>
-                <tr><td>SPACE</td><td>Fire weapon</td></tr>
-                <tr><td>1 / 2</td><td>Select Cannon / Missiles</td></tr>
+                <tr><td>W / S</td><td>Forward / backward</td></tr>
+                <tr><td>A / D</td><td>Turn left / right</td></tr>
+                <tr><td>Q / E</td><td>Strafe left / right</td></tr>
+                <tr><td>SHIFT / R</td><td>Climb</td></tr>
+                <tr><td>CTRL / F</td><td>Descend</td></tr>
+                <tr><td>SPACE</td><td>Fire (auto-aim on lock)</td></tr>
+                <tr><td>1 / 2 / TAB</td><td>Cannon / Hellfire / switch</td></tr>
                 <tr><td>C</td><td>Camera view</td></tr>
                 <tr><td>P / ESC</td><td>Pause</td></tr>
             </table>

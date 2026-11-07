@@ -32,10 +32,7 @@ export function initInput(gameState) {
 
     window.addEventListener('mousedown', (e) => {
         mouseButtons = e.buttons;
-        // Request pointer lock on click during gameplay
-        if (gameState.state === 'PLAYING' && !pointerLocked) {
-            gameState.renderer.domElement.requestPointerLock();
-        }
+        e.preventDefault();
     });
 
     window.addEventListener('mouseup', (e) => {

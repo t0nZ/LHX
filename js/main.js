@@ -3,7 +3,7 @@
 // ============================================
 import * as THREE from 'three';
 
-import { initInput, updateInput, wasKeyJustPressed, resetKeys } from './input.js';
+import { initInput, updateInput, resetKeys } from './input.js';
 import { initSky, updateSky } from './sky.js';
 import { initTerrain } from './terrain.js';
 import { initTrees } from './trees.js';
@@ -17,6 +17,9 @@ import { initAnimals, updateAnimals } from './animals.js';
 import { initNPCs, updateNPCs } from './npcs.js';
 import { initHUD, updateHUD } from './hud.js';
 import { initAudio, updateAudio } from './audio.js';
+import { initEnemies, updateEnemies } from './enemies.js';
+import { initMissions, updateMissions, beginCampaign, handleEnter } from './missions.js';
+import { initRetro, renderRetro } from './retro.js';
 
 // ---- GAME STATE ----
 const gameState = {
@@ -24,7 +27,7 @@ const gameState = {
     camera: null,
     renderer: null,
     clock: null,
-    state: 'MENU', // MENU, PLAYING, PAUSED
+    state: 'MENU', // MENU, BRIEFING, PLAYING, PAUSED, DEBRIEF
     time: 0,
     delta: 0,
     helicopter: null,
@@ -33,6 +36,7 @@ const gameState = {
     vehicles: [],
     animals: [],
     npcs: [],
+    enemies: [],
     weapons: null,
     world: null,
     input: null,
@@ -40,27 +44,24 @@ const gameState = {
 
 // ---- DOM ELEMENTS ----
 const titleScreen = document.getElementById('title-screen');
-const hudElement = document.getElementById('hud');
 const pauseScreen = document.getElementById('pause-screen');
 
 // ---- INIT ----
 function init() {
-    // Three.js setup
     const canvas = document.getElementById('game-canvas');
-    
+
     gameState.renderer = new THREE.WebGLRenderer({
         canvas,
-        antialias: true,
+        antialias: false,   // chunky retro pixels
         alpha: false,
+        powerPreference: 'high-performance',
     });
-    gameState.renderer.setSize(window.innerWidth, window.innerHeight);
-    gameState.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    gameState.renderer.setClearColor(0x88aacc);
-    
+    gameState.renderer.setClearColor(0xb3c8d9);
+
     gameState.scene = new THREE.Scene();
     gameState.clock = new THREE.Clock();
-    
-    // Init all modules
+
+    // Init all modules (order matters: terrain before buildings/trees)
     initInput(gameState);
     initCamera(gameState);
     initSky(gameState);
@@ -73,96 +74,109 @@ function init() {
     initVehicles(gameState);
     initAnimals(gameState);
     initNPCs(gameState);
+    initEnemies(gameState);
     initHUD(gameState);
     initAudio(gameState);
-    
-    // Title screen — wait for Enter
+    initMissions(gameState);
+    initRetro(gameState);
+
+    const hi = document.getElementById('title-hiscore');
+    if (hi) hi.textContent = `HI-SCORE ${String(gameState.hiScore).padStart(6, '0')}`;
+
     window.addEventListener('keydown', handleGlobalKeys);
-    
-    // Start render loop
+    window.addEventListener('blur', () => {
+        if (gameState.state === 'PLAYING') pauseGame();
+    });
+
+    gameState.clock.start();
+    window.__game = gameState; // debug handle
     animate();
 }
 
 function handleGlobalKeys(e) {
-    if (gameState.state === 'MENU' && e.code === 'Enter') {
-        startGame();
+    if (e.code === 'Enter') {
+        if (gameState.state === 'MENU') {
+            titleScreen.classList.add('hidden');
+            beginCampaign(gameState);
+        } else if (gameState.state === 'BRIEFING' || gameState.state === 'DEBRIEF') {
+            handleEnter(gameState);
+        }
+        return;
     }
-    
-    if (gameState.state === 'PLAYING') {
-        if (e.code === 'KeyP' || e.code === 'Escape') {
-            pauseGame();
-        }
-        if (e.code === 'KeyC') {
-            cycleCamera(gameState);
-        }
-    } else if (gameState.state === 'PAUSED') {
-        if (e.code === 'KeyP' || e.code === 'Escape') {
-            resumeGame();
-        }
-    }
-}
 
-function startGame() {
-    gameState.state = 'PLAYING';
-    titleScreen.classList.add('hidden');
-    hudElement.classList.remove('hidden');
-    pauseScreen.classList.add('hidden');
-    gameState.clock.start();
-    document.body.style.cursor = 'none';
+    if (gameState.state === 'PLAYING') {
+        if (e.code === 'KeyP' || e.code === 'Escape') pauseGame();
+        if (e.code === 'KeyC') cycleCamera(gameState);
+    } else if (gameState.state === 'PAUSED') {
+        if (e.code === 'KeyP' || e.code === 'Escape') resumeGame();
+    }
 }
 
 function pauseGame() {
     gameState.state = 'PAUSED';
     pauseScreen.classList.remove('hidden');
     resetKeys();
-    document.body.style.cursor = 'default';
 }
 
 function resumeGame() {
     gameState.state = 'PLAYING';
     pauseScreen.classList.add('hidden');
-    document.body.style.cursor = 'none';
+}
+
+// ---- Camera orbit for menu / briefing screens ----
+function orbitCamera(target, radius, height, speed) {
+    const t = gameState.time * speed;
+    gameState.camera.position.set(
+        target.x + Math.sin(t) * radius,
+        target.y + height,
+        target.z + Math.cos(t) * radius
+    );
+    gameState.camera.lookAt(target.x, target.y + 4, target.z);
 }
 
 // ---- GAME LOOP ----
 function animate() {
     requestAnimationFrame(animate);
-    
+
     const dt = Math.min(gameState.clock.getDelta(), 0.05); // Cap at 50ms
     gameState.delta = dt;
     gameState.time += dt;
-    
-    if (gameState.state === 'PLAYING') {
-        // Update all systems
+
+    const st = gameState.state;
+    const playing = st === 'PLAYING';
+    const ambient = st !== 'PAUSED';
+
+    if (playing) {
         updateInput(gameState);
         updateHelicopter(gameState);
-        updateCamera(gameState);
         updateWeapons(gameState);
+        updateEnemies(gameState);
+        updateMissions(gameState);
+        updateCamera(gameState);
+    }
+    if (ambient) {
         updateEffects(gameState);
         updateBuildings(gameState);
         updateVehicles(gameState);
         updateAnimals(gameState);
         updateNPCs(gameState);
+        updateSky(gameState);
+    }
+    if (playing) {
         updateHUD(gameState);
         updateAudio(gameState);
-        updateSky(gameState);
-    } else if (gameState.state === 'MENU') {
-        // Slow camera orbit on title screen
-        const menuTime = gameState.time * 0.3;
-        if (gameState.camera) {
-            gameState.camera.position.set(
-                Math.sin(menuTime) * 300,
-                80 + Math.sin(menuTime * 0.5) * 20,
-                Math.cos(menuTime) * 300
-            );
-            gameState.camera.lookAt(0, 10, 0);
+    } else if (st === 'MENU') {
+        orbitCamera(new THREE.Vector3(0, 10, 0), 320, 90, 0.15);
+    } else if (st === 'BRIEFING' || st === 'DEBRIEF') {
+        const h = gameState.helicopter;
+        if (h) {
+            h.rotorGroup.rotation.y += 10 * dt;
+            h.tailRotorGroup.rotation.y += 15 * dt;
+            orbitCamera(h.position, 38, 12, 0.25);
         }
     }
-    
-    // Render
-    if (gameState.renderer && gameState.scene && gameState.camera) {
-        gameState.renderer.render(gameState.scene, gameState.camera);
-    }
+
+    renderRetro(gameState);
 }
 
 // ---- START ----
