@@ -10,26 +10,26 @@ A complete retro-style helicopter flight and combat simulator inspired by **LHX 
 
 | File | Size | Description |
 |------|------|-------------|
-| [index.html](file:///c:/NSCpythons/LHX/index.html) | 6.5 KB | Entry point with importmap, title screen, briefing modals, and green-phosphor HUD overlay |
-| [style.css](file:///c:/NSCpythons/LHX/style.css) | 12.3 KB | Retro CRT scanlines, arcade font styles, tactical gauges, lock brackets, damage flash |
-| [main.js](file:///c:/NSCpythons/LHX/js/main.js) | 5.6 KB | Game loop orchestrator, state machine (Menu, Briefing, Playing, Paused, Debrief) |
-| [retro.js](file:///c:/NSCpythons/LHX/js/retro.js) | 4.2 KB | VGA pixelation & ordered palette dithering post-process shader pipeline |
-| [missions.js](file:///c:/NSCpythons/LHX/js/missions.js) | 12.5 KB | Campaign progression, briefings, hostile wave tracking, score, lives, base rearm & repair |
-| [enemies.js](file:///c:/NSCpythons/LHX/js/enemies.js) | 18.4 KB | AI enemies: hostile tanks, AA flak guns, and enemy attack helicopters with projectile physics |
-| [helicopter.js](file:///c:/NSCpythons/LHX/js/helicopter.js) | 15.6 KB | Hand-crafted low-poly LHX gunship, spinning rotor animations, flight physics & damage states |
-| [weapons.js](file:///c:/NSCpythons/LHX/js/weapons.js) | 9.6 KB | M230 chain gun (tracers + auto-aim lock) & Hellfire guided missiles with smoke trails |
-| [buildings.js](file:///c:/NSCpythons/LHX/js/buildings.js) | 11.6 KB | Destructible landmarks: Torre Civica, Chiesa, Campanile, Municipio, farmhouses & rubble |
-| [terrain.js](file:///c:/NSCpythons/LHX/js/terrain.js) | 10.9 KB | Castel Bolognese map: Via Emilia highway, cross streets, Senio river curve, farmland plots |
-| [trees.js](file:///c:/NSCpythons/LHX/js/trees.js) | 6.3 KB | 800+ instanced 3D trees with seasonal color variations and cluster generation |
-| [vehicles.js](file:///c:/NSCpythons/LHX/js/vehicles.js) | 5.9 KB | Civilian traffic (colorful Fiat-style cars) navigating town and countryside routes |
-| [animals.js](file:///c:/NSCpythons/LHX/js/animals.js) | 14.5 KB | Low-poly fauna: chickens, cows, wild boars, wolves with reactive wandering and fleeing AI |
-| [npcs.js](file:///c:/NSCpythons/LHX/js/npcs.js) | 8.6 KB | Animated Romagna farmers with hats, boots, arm/leg walking cycles and flee behaviors |
-| [camera.js](file:///c:/NSCpythons/LHX/js/camera.js) | 3.3 KB | Multiple perspective modes: chase camera, cockpit view, and top-down / fly-by angles |
-| [effects.js](file:///c:/NSCpythons/LHX/js/effects.js) | 13.5 KB | Multi-layer explosion FX: flash, fireball color shift, bouncing debris, smoke columns, screen shake |
-| [audio.js](file:///c:/NSCpythons/LHX/js/audio.js) | 7.5 KB | Procedural Web Audio API sound synthesis: dynamic rotor hum, cannon bursts, missile whoosh, flak rumbles |
-| [hud.js](file:///c:/NSCpythons/LHX/js/hud.js) | 9.7 KB | Real-time instrument gauges (ALT, SPD, VS), compass tape, target lock-on, waypoint arrow, radar minimap |
-| [sky.js](file:///c:/NSCpythons/LHX/js/sky.js) | 4.2 KB | Horizon haze, atmospheric sky dome gradient, sun directional lighting, and low-poly clouds |
-| [input.js](file:///c:/NSCpythons/LHX/js/input.js) | 2.2 KB | Keyboard and mouse controller handler with key debounce and pointer support |
+| [index.html](index.html) | 6.5 KB | Entry point with importmap, title screen, briefing modals, and green-phosphor HUD overlay |
+| [style.css](style.css) | 12.3 KB | Retro CRT scanlines, arcade font styles, tactical gauges, lock brackets, damage flash |
+| [main.js](js/main.js) | 5.6 KB | Game loop orchestrator, state machine (Menu, Briefing, Playing, Paused, Debrief) |
+| [retro.js](js/retro.js) | 4.2 KB | VGA pixelation & ordered palette dithering post-process shader pipeline |
+| [missions.js](js/missions.js) | 12.5 KB | Campaign progression, briefings, hostile wave tracking, score, lives, base rearm & repair |
+| [enemies.js](js/enemies.js) | 18.4 KB | AI enemies: hostile tanks, AA flak guns, and enemy attack helicopters with projectile physics |
+| [helicopter.js](js/helicopter.js) | 15.6 KB | Hand-crafted low-poly LHX gunship, spinning rotor animations, flight physics & damage states |
+| [weapons.js](js/weapons.js) | 9.6 KB | M230 chain gun (tracers + auto-aim lock) & Hellfire guided missiles with smoke trails |
+| [buildings.js](js/buildings.js) | 11.6 KB | Destructible landmarks: Torre Civica, Chiesa, Campanile, Municipio, farmhouses & rubble |
+| [terrain.js](js/terrain.js) | 10.9 KB | Castel Bolognese map: Via Emilia highway, cross streets, Senio river curve, farmland plots |
+| [trees.js](js/trees.js) | 6.3 KB | 800+ instanced 3D trees with seasonal color variations and cluster generation |
+| [vehicles.js](js/vehicles.js) | 5.9 KB | Civilian traffic (colorful Fiat-style cars) navigating town and countryside routes |
+| [animals.js](js/animals.js) | 14.5 KB | Low-poly fauna: chickens, cows, wild boars, wolves with reactive wandering and fleeing AI |
+| [npcs.js](js/npcs.js) | 8.6 KB | Animated Romagna farmers with hats, boots, arm/leg walking cycles and flee behaviors |
+| [camera.js](js/camera.js) | 3.3 KB | Multiple perspective modes: chase camera, cockpit view, and top-down / fly-by angles |
+| [effects.js](js/effects.js) | 13.5 KB | Multi-layer explosion FX: flash, fireball color shift, bouncing debris, smoke columns, screen shake |
+| [audio.js](js/audio.js) | 7.5 KB | Procedural Web Audio API sound synthesis: dynamic rotor hum, cannon bursts, missile whoosh, flak rumbles |
+| [hud.js](js/hud.js) | 9.7 KB | Real-time instrument gauges (ALT, SPD, VS), compass tape, target lock-on, waypoint arrow, radar minimap |
+| [sky.js](js/sky.js) | 4.2 KB | Horizon haze, atmospheric sky dome gradient, sun directional lighting, and low-poly clouds |
+| [input.js](js/input.js) | 2.2 KB | Keyboard and mouse controller handler with key debounce and pointer support |
 
 **Total**: 20 source files (~167 KB of custom game code).
 
