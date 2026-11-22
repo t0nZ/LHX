@@ -51,7 +51,7 @@ export function initSky(gameState) {
     gameState.sky = sky;
 
     // Fog — mimics the LHX draw distance effect
-    scene.fog = new THREE.Fog(0xb3c8d9, 350, 1900);
+    scene.fog = new THREE.Fog(0xb3c8d9, 600, 3400);
 
     // Sun disc
     const sunMesh = new THREE.Mesh(
@@ -62,24 +62,30 @@ export function initSky(gameState) {
     sunMesh.lookAt(0, 0, 0);
     sky.add(sunMesh);
 
-    // Low-poly clouds
+    // Low-poly clouds (single InstancedMesh = 1 draw call for Intel iGPU efficiency)
     const cloudGeo = new THREE.IcosahedronGeometry(1, 0);
-    const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.92, fog: false });
-    const clouds = new THREE.Group();
+    const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.90, fog: false });
     let cs = 7;
     const crand = () => { cs = (cs * 16807) % 2147483647; return cs / 2147483647; };
-    for (let i = 0; i < 34; i++) {
-        const cluster = new THREE.Group();
+    const cloudMats = [];
+    const dummy = new THREE.Object3D();
+    for (let i = 0; i < 40; i++) {
+        const cx = (crand() - 0.5) * 7200;
+        const cy = 440 + crand() * 180;
+        const cz = (crand() - 0.5) * 7200;
         const puffs = 3 + Math.floor(crand() * 3);
         for (let j = 0; j < puffs; j++) {
-            const puff = new THREE.Mesh(cloudGeo, cloudMat);
-            puff.scale.set(40 + crand() * 50, 12 + crand() * 8, 30 + crand() * 30);
-            puff.position.set(j * 45 - puffs * 20, crand() * 8, (crand() - 0.5) * 30);
-            cluster.add(puff);
+            dummy.position.set(cx + j * 45 - puffs * 20, cy + crand() * 8, cz + (crand() - 0.5) * 30);
+            dummy.scale.set(42 + crand() * 55, 12 + crand() * 8, 32 + crand() * 32);
+            dummy.rotation.set(0, crand() * Math.PI, 0);
+            dummy.updateMatrix();
+            cloudMats.push(dummy.matrix.clone());
         }
-        cluster.position.set((crand() - 0.5) * 3600, 380 + crand() * 160, (crand() - 0.5) * 3600);
-        clouds.add(cluster);
     }
+    const clouds = new THREE.InstancedMesh(cloudGeo, cloudMat, cloudMats.length);
+    for (let i = 0; i < cloudMats.length; i++) clouds.setMatrixAt(i, cloudMats[i]);
+    clouds.instanceMatrix.needsUpdate = true;
+    clouds.frustumCulled = false;
     scene.add(clouds);
     gameState.clouds = clouds;
 
@@ -103,7 +109,7 @@ export function initSky(gameState) {
 export function updateSky(gameState) {
     if (gameState.clouds) {
         gameState.clouds.position.x += gameState.delta * 4;
-        if (gameState.clouds.position.x > 1800) gameState.clouds.position.x = -1800;
+        if (gameState.clouds.position.x > 3600) gameState.clouds.position.x = -3600;
     }
     // Sky follows camera position (infinite sky effect)
     if (gameState.camera) {

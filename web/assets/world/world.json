@@ -1,0 +1,25 @@
+{
+ "version": 1,
+ "center": {
+  "lat": 44.31957,
+  "lon": 11.79937,
+  "name": "Piazza Bernardi, Castel Bolognese"
+ },
+ "axes": "x=East, z=South (metres), y=up (metres above sea level, NOT re-based)",
+ "size": 8192,
+ "grid": 513,
+ "step": 16.0,
+ "heightScale": 0.1,
+ "heightOffset": -100.0,
+ "minHeight": 21.97,
+ "maxHeight": 209.16,
+ "centerHeight": 46.9,
+ "bbox": {
+  "n": 44.356364994037534,
+  "s": 44.28277500596246,
+  "w": 11.747941135520225,
+  "e": 11.850798864479774
+ },
+ "attribution": "Elevation: AWS Terrain Tiles (Mapzen/Terrarium; EU-DEM, SRTM). Map data \u00a9 OpenStreetMap contributors (ODbL).",
+ "baked": "2026-11-22T17:45:02"
+}

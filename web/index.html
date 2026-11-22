@@ -3,17 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LHX Castelbolognese — Attack Chopper</title>
+    <title>LHX Castelbolognese - Attack Chopper</title>
     <meta name="description" content="Retro helicopter flight simulator over Castel Bolognese, inspired by LHX Attack Chopper (1990)">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="vendor/fonts/fonts.css">
     <link rel="stylesheet" href="style.css">
     <script type="importmap">
     {
         "imports": {
-            "three": "https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.module.js",
-            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/"
+            "three": "./vendor/three/three.module.js",
+            "three/addons/": "./vendor/three/addons/"
         }
     }
     </script>
@@ -30,7 +28,7 @@
             <div class="title-logo">
                 <h1 class="title-main">LHX</h1>
                 <h2 class="title-sub">ATTACK CHOPPER</h2>
-                <div class="title-location">— CASTELBOLOGNESE —</div>
+                <div class="title-location">- CASTEL BOLOGNESE -</div>
             </div>
             <div class="title-helicopter-art">
                 <pre class="ascii-art">
@@ -48,7 +46,7 @@
             <div class="title-info">
                 <p class="blink">PRESS ENTER TO START</p>
                 <p id="title-hiscore" class="title-hi">HI-SCORE 000000</p>
-                <p class="title-credits">Inspired by LHX Attack Chopper (EA, 1990) — W/A/S/D + SHIFT + SPACE</p>
+                <p class="title-credits">Inspired by LHX Attack Chopper (EA, 1990) - W/A/S/D + SHIFT + SPACE</p>
             </div>
         </div>
     </div>
@@ -58,7 +56,9 @@
         <!-- Top bar: compass -->
         <div id="hud-compass">
             <div id="compass-heading">000° N</div>
+            <div id="compass-place">CASTEL BOLOGNESE</div>
         </div>
+        <div id="hud-perf" class="hidden">60 FPS</div>
 
         <!-- Mission panel -->
         <div id="hud-mission">
@@ -90,6 +90,7 @@
                 <span class="gauge-label">ALT</span>
                 <span class="gauge-value" id="val-altitude">0</span>
                 <span class="gauge-unit">m</span>
+                <span class="gauge-sub" id="val-msl">47m MSL</span>
                 <div class="gauge-bar-container">
                     <div class="gauge-bar" id="bar-altitude"></div>
                 </div>
@@ -156,7 +157,7 @@
 
     <!-- Pause Screen -->
     <div id="pause-screen" class="hidden">
-        <h2>— PAUSED —</h2>
+        <h2>- PAUSED -</h2>
         <p>Press P or ESC to resume</p>
         <div class="controls-help">
             <h3>CONTROLS</h3>
@@ -169,11 +170,14 @@
                 <tr><td>SPACE</td><td>Fire (auto-aim on lock)</td></tr>
                 <tr><td>1 / 2 / TAB</td><td>Cannon / Hellfire / switch</td></tr>
                 <tr><td>C</td><td>Camera view</td></tr>
+                <tr><td>V</td><td>Video preset (VGA 3x / 2x / Crisp)</td></tr>
+                <tr><td>I</td><td>Toggle FPS &amp; draw-call stats</td></tr>
                 <tr><td>P / ESC</td><td>Pause</td></tr>
             </table>
         </div>
     </div>
 
     <script type="module" src="js/main.js"></script>
+    <div id="attribution">Elevation: AWS Terrain Tiles (EU-DEM/SRTM) &middot; Map data &copy; OpenStreetMap contributors</div>
 </body>
 </html>

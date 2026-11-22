@@ -139,8 +139,16 @@ function createFarmerMesh(rand) {
 export function updateNPCs(gameState) {
     const dt = gameState.delta;
     const heliPos = gameState.helicopter ? gameState.helicopter.position : null;
-    
+    const camPos = gameState.camera ? gameState.camera.position : heliPos;
+    const CULL_SQ = 450 * 450;
+
     for (const npc of gameState.npcs) {
+        if (camPos) {
+            const dx = npc.position.x - camPos.x, dz = npc.position.z - camPos.z;
+            const visible = (dx * dx + dz * dz) < CULL_SQ;
+            npc.mesh.visible = visible;
+            if (!visible) continue;
+        }
         npc.stateTimer -= dt;
         
         let distToHeli = Infinity;
@@ -224,8 +232,9 @@ export function updateNPCs(gameState) {
         npc.mesh.position.copy(npc.position);
         
         // World bounds
-        npc.position.x = THREE.MathUtils.clamp(npc.position.x, -900, 900);
-        npc.position.z = THREE.MathUtils.clamp(npc.position.z, -900, 900);
+        const bound = gameState.world ? gameState.world.size / 2 - 100 : 900;
+        npc.position.x = THREE.MathUtils.clamp(npc.position.x, -bound, bound);
+        npc.position.z = THREE.MathUtils.clamp(npc.position.z, -bound, bound);
     }
 }
 

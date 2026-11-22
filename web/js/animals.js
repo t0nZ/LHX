@@ -273,8 +273,17 @@ function createAnimalMesh(type, config, rand) {
 export function updateAnimals(gameState) {
     const dt = gameState.delta;
     const heliPos = gameState.helicopter ? gameState.helicopter.position : null;
-    
+    const camPos = gameState.camera ? gameState.camera.position : heliPos;
+    const bound = gameState.world ? gameState.world.size / 2 - 100 : 900;
+    const CULL_SQ = 450 * 450;
+
     for (const a of gameState.animals) {
+        if (camPos) {
+            const dx = a.position.x - camPos.x, dz = a.position.z - camPos.z;
+            const visible = (dx * dx + dz * dz) < CULL_SQ;
+            a.mesh.visible = visible;
+            if (!visible) continue;
+        }
         a.stateTimer -= dt;
         
         // Check distance to helicopter for fleeing
@@ -369,7 +378,7 @@ export function updateAnimals(gameState) {
         }
         
         // Keep in world bounds
-        a.position.x = THREE.MathUtils.clamp(a.position.x, -900, 900);
-        a.position.z = THREE.MathUtils.clamp(a.position.z, -900, 900);
+        a.position.x = THREE.MathUtils.clamp(a.position.x, -bound, bound);
+        a.position.z = THREE.MathUtils.clamp(a.position.z, -bound, bound);
     }
 }

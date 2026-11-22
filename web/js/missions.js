@@ -12,8 +12,8 @@ const MISSIONS = [
     {
         title: 'PRESIDIO SULLA VIA EMILIA',
         brief: [
-            'Truppe ostili hanno bloccato la Via Emilia a est',
-            'di Castel Bolognese, oltre il fiume Senio.',
+            'Truppe ostili hanno bloccato la Via Emilia a sud-est',
+            'di Castel Bolognese, al Ponte del Castello sul Senio.',
             '',
             'OBIETTIVO: distruggi i carri armati e le postazioni',
             'contraeree. Segui la freccia sul display.',
@@ -22,17 +22,16 @@ const MISSIONS = [
             'Il centro storico non e\' un bersaglio!',
         ],
         groups: [
-            { type: 'tank', cx: 520, cz: -20, r: 70, n: 4 },
-            { type: 'aa', cx: 500, cz: -20, r: 90, n: 2 },
+            { type: 'tank', cx: 1980, cz: 1080, r: 140, n: 4 },
+            { type: 'aa',   cx: 1850, cz: 1000, r: 140, n: 2 },
         ],
         reinforcements: [],
     },
     {
         title: 'BATTAGLIA DEL SENIO',
         brief: [
-            'Il nemico avanza lungo il Senio verso nord-est.',
-            'Una colonna corazzata con difesa contraerea sta',
-            'attraversando i campi.',
+            'Il nemico avanza lungo il fiume Senio verso nord-est',
+            'tra Ponte del Castello e Gaiano.',
             '',
             'OBIETTIVO: neutralizza la colonna. Elicotteri',
             'd\'attacco nemici sono in zona: usa gli Hellfire.',
@@ -40,35 +39,34 @@ const MISSIONS = [
             'Torna sull\'eliporto per ripararti e fare rifornimento.',
         ],
         groups: [
-            { type: 'tank', cx: 330, cz: 330, r: 120, n: 5 },
-            { type: 'aa', cx: 250, cz: 330, r: 120, n: 3 },
-            { type: 'heli', cx: 700, cz: 300, r: 30, n: 1, altitude: 80 },
+            { type: 'tank', cx: 2560, cz: 180, r: 220, n: 5 },
+            { type: 'aa',   cx: 2420, cz: 360, r: 180, n: 3 },
+            { type: 'heli', cx: 2800, cz: -180, r: 60, n: 1, altitude: 85 },
         ],
         reinforcements: [
-            { time: 30, type: 'heli', x: 800, z: -200, msg: 'ELICOTTERO NEMICO IN ARRIVO!' },
+            { time: 35, type: 'heli', x: 3200, z: -650, msg: 'ELICOTTERO NEMICO IN ARRIVO!' },
         ],
     },
     {
         title: 'OPERAZIONE APPENNINO',
         brief: [
-            'Il comando nemico si e\' ritirato sulle colline',
-            'a sud, protetto da batterie contraeree e',
-            'pattuglie di elicotteri.',
+            'Il comando nemico si e\' ritirato sulle prime colline',
+            'a sud-ovest (Biancanigo, Casale, Campiano, Fognana).',
             '',
             'OBIETTIVO: elimina ogni presenza ostile.',
-            'Vola basso tra le colline per evitare i radar.',
+            'Sfrutta i rilievi reali delle colline per coprirti!',
             '',
             'Questa e\' l\'ultima missione. Buona fortuna, pilota.',
         ],
         groups: [
-            { type: 'tank', cx: -150, cz: 640, r: 150, n: 5 },
-            { type: 'aa', cx: 0, cz: 700, r: 200, n: 4 },
-            { type: 'heli', cx: 200, cz: 520, r: 40, n: 1, altitude: 90, aggression: 1.2 },
-            { type: 'heli', cx: -300, cz: 600, r: 40, n: 1, altitude: 90, aggression: 1.2 },
+            { type: 'tank', cx: -950, cz: 2550, r: 260, n: 5 },
+            { type: 'aa',   cx: 260,  cz: 2050, r: 240, n: 4 },
+            { type: 'heli', cx: -1400, cz: 2800, r: 80, n: 1, altitude: 95, aggression: 1.2 },
+            { type: 'heli', cx: 400,   cz: 2400, r: 80, n: 1, altitude: 95, aggression: 1.2 },
         ],
         reinforcements: [
-            { time: 35, type: 'heli', x: 500, z: 800, msg: 'RINFORZI NEMICI IN ARRIVO!' },
-            { time: 70, type: 'heli', x: -600, z: 800, msg: 'ALTRI ELICOTTERI IN ARRIVO!' },
+            { time: 40, type: 'heli', x: -2200, z: 3100, msg: 'RINFORZI NEMICI DALLE COLLINE!' },
+            { time: 75, type: 'heli', x: 1100,  z: 2900, msg: 'ALTRI ELICOTTERI IN ARRIVO!' },
         ],
     },
 ];
@@ -112,7 +110,22 @@ export function initMissions(gameState) {
 }
 
 export function beginCampaign(gameState) {
+    gameState.freeFlight = false;
     showBriefing(gameState);
+}
+
+export function beginFreeFlight(gameState) {
+    gameState.freeFlight = true;
+    clearEnemies(gameState);
+    resetPlayer(gameState);
+    gameState.mission = null;
+    gameState.state = 'PLAYING';
+    $('hud').classList.remove('hidden');
+    $('m-title').textContent = 'VOLO LIBERO';
+    $('m-obj').textContent = 'CASTEL BOLOGNESE (8.2 km)';
+    $('m-score').textContent = 'MODO ESPLORAZIONE';
+    $('m-lives').textContent = 'V=VIDEO  I=FPS';
+    notify('VOLO LIBERO — TIENI SHIFT PER DECOLLARE', '#00ff41', 5000);
 }
 
 // ---------- Overlay ----------
@@ -199,11 +212,12 @@ function prepareMission(gameState) {
 function scatterSpawn(gameState, g) {
     const v = new THREE.Vector3();
     const pad = gameState.helipad;
+    const lim = gameState.world ? gameState.world.size / 2 - 200 : 900;
     for (let tries = 0; tries < 40; tries++) {
         const a = Math.random() * Math.PI * 2;
         const r = Math.sqrt(Math.random()) * g.r;
-        const x = THREE.MathUtils.clamp(g.cx + Math.cos(a) * r, -900, 900);
-        const z = THREE.MathUtils.clamp(g.cz + Math.sin(a) * r, -900, 900);
+        const x = THREE.MathUtils.clamp(g.cx + Math.cos(a) * r, -lim, lim);
+        const z = THREE.MathUtils.clamp(g.cz + Math.sin(a) * r, -lim, lim);
         if (gameState.world.isWater(x, z)) continue;
         if (Math.hypot(x - pad.x, z - pad.z) < 80) continue;
         v.set(x, gameState.world.getHeight(x, z) + 1, z);
@@ -292,20 +306,9 @@ export function updateMissions(gameState) {
     const dt = gameState.delta;
     const h = gameState.helicopter;
     const mi = gameState.mission;
-    if (!mi || gameState.state !== 'PLAYING') return;
+    if (gameState.state !== 'PLAYING') return;
 
-    mi.time += dt;
-
-    // Reinforcements
-    for (const r of mi.pending) {
-        if (!r.done && mi.time >= r.time) {
-            r.done = true;
-            spawnEnemy(gameState, r.type, r.x, r.z, { altitude: 70, aggression: 1.1 });
-            notify(r.msg, '#ff4444', 4000);
-        }
-    }
-
-    // Helipad resupply
+    // Helipad resupply works in both Campaign and Free Flight
     const pad = gameState.helipad;
     const onPad = h.alive && h.onGround && h.speed < 12 &&
         Math.hypot(h.position.x - pad.x, h.position.z - pad.z) < pad.r;
@@ -321,6 +324,26 @@ export function updateMissions(gameState) {
                 wasRearming = false;
                 notify('REARMED & REPAIRED', '#00ff41');
             }
+        }
+    }
+
+    if (!mi) {
+        // Free flight: respawn on helipad if player crashes
+        if (!h.alive && deathTimer > 0) {
+            deathTimer -= dt;
+            if (deathTimer <= 0) { resetPlayer(gameState); notify('ELICOTTERO RIPRISTINATO IN BASE', '#00ff41'); }
+        }
+        return;
+    }
+
+    mi.time += dt;
+
+    // Reinforcements
+    for (const r of mi.pending) {
+        if (!r.done && mi.time >= r.time) {
+            r.done = true;
+            spawnEnemy(gameState, r.type, r.x, r.z, { altitude: 70, aggression: 1.1 });
+            notify(r.msg, '#ff4444', 4000);
         }
     }
 

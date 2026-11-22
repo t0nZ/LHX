@@ -190,8 +190,10 @@ export function initHelicopter(gameState) {
     // Scale the whole helicopter
     heli.scale.set(1.5, 1.5, 1.5);
     
-    // Position at spawn point
-    heli.position.set(-40, 30, -280);
+    // Position at helipad spawn point
+    const pad = gameState.helipad || { x: -40, z: -280 };
+    const startY = (gameState.world ? gameState.world.getHeight(pad.x, pad.z) : 0) + 1.3;
+    heli.position.set(pad.x, startY, pad.z);
     
     gameState.scene.add(heli);
     
@@ -327,8 +329,9 @@ export function updateHelicopter(gameState) {
     }
 
     // --- World bounds (soft wall) ---
-    h.position.x = THREE.MathUtils.clamp(h.position.x, -WORLD_HALF, WORLD_HALF);
-    h.position.z = THREE.MathUtils.clamp(h.position.z, -WORLD_HALF, WORLD_HALF);
+    const bound = gameState.world ? gameState.world.size / 2 - 150 : WORLD_HALF;
+    h.position.x = THREE.MathUtils.clamp(h.position.x, -bound, bound);
+    h.position.z = THREE.MathUtils.clamp(h.position.z, -bound, bound);
 
     // --- Derived values ---
     const gh = gameState.world ? gameState.world.getHeight(h.position.x, h.position.z) : 0;

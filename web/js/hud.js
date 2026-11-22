@@ -1,9 +1,19 @@
-// ============================================
+﻿// ============================================
 // HUD.JS — Head-Up Display, target brackets & radar
 // ============================================
 import * as THREE from 'three';
+import { getVideoPresetName } from './retro.js';
 
 const _p = new THREE.Vector3();
+let perfVisible = false;
+let fpsFrames = 0, fpsAccum = 0, fpsValue = 0;
+
+export function togglePerfOverlay() {
+    perfVisible = !perfVisible;
+    const el = document.getElementById('hud-perf');
+    if (el) el.classList.toggle('hidden', !perfVisible);
+    return perfVisible;
+}
 
 export function notify(text, color = '#ffaa00', ms = 3000) {
     const container = document.getElementById('hud-notifications');
@@ -22,6 +32,7 @@ export function initHUD(gameState) {
     const $ = (id) => document.getElementById(id);
     gameState.hudElements = {
         altitude: $('val-altitude'),
+        msl: $('val-msl'),
         speed: $('val-speed'),
         vspeed: $('val-vspeed'),
         weaponName: $('val-weapon-name'),
@@ -30,6 +41,8 @@ export function initHUD(gameState) {
         healthBar: $('bar-health'),
         altitudeBar: $('bar-altitude'),
         heading: $('compass-heading'),
+        place: $('compass-place'),
+        perf: $('hud-perf'),
         lockBox: $('hud-lock'),
         lockText: $('hud-lock-text'),
         arrow: $('hud-arrow'),
@@ -49,8 +62,12 @@ export function updateHUD(gameState) {
     const els = gameState.hudElements;
     if (!h || !els.altitude) return;
 
-    // Altitude
+    // Altitude (AGL + true MSL above sea level)
     els.altitude.textContent = Math.round(h.altitude);
+    if (els.msl && gameState.world) {
+        const msl = Math.round(h.position.y + (gameState.world.elevationBase || 0));
+        els.msl.textContent = `${msl}m MSL`;
+    }
     if (els.altitudeBar) els.altitudeBar.style.width = Math.min(100, (h.altitude / 450) * 100) + '%';
 
     // Speed (km/h)
@@ -79,12 +96,36 @@ export function updateHUD(gameState) {
         else if (h.health < 60) els.healthBar.classList.add('warning');
     }
 
-    // Heading (0 = north = -Z, clockwise)
+    // Heading (0 = north = -Z, clockwise) + nearest real locality
     if (els.heading) {
         let deg = (180 - THREE.MathUtils.radToDeg(h.yaw)) % 360;
         if (deg < 0) deg += 360;
         const card = CARDINALS[Math.round(deg / 45) % 8];
         els.heading.textContent = `${String(Math.round(deg)).padStart(3, '0')}° ${card}`;
+    }
+    if (els.place && gameState.world && gameState.world.places && gameState.world.places.length) {
+        let best = null, bestD = Infinity;
+        for (const p of gameState.world.places) {
+            const d = Math.hypot(p.x - h.position.x, p.z - h.position.z);
+            if (d < bestD) { bestD = d; best = p; }
+        }
+        if (best) {
+            const distStr = bestD < 250 ? '' : ` ${(bestD / 1000).toFixed(1)}km`;
+            els.place.textContent = `${best.n.toUpperCase()}${distStr}`;
+        }
+    }
+
+    // Perf telemetry (toggled with 'I')
+    fpsFrames++;
+    fpsAccum += gameState.delta;
+    if (fpsAccum >= 0.4) {
+        fpsValue = Math.round(fpsFrames / fpsAccum);
+        fpsFrames = 0; fpsAccum = 0;
+        if (perfVisible && els.perf && gameState.renderer) {
+            const info = gameState.sceneStats || gameState.renderer.info.render;
+            const tris = (info.triangles / 1000).toFixed(1);
+            els.perf.textContent = `${fpsValue} FPS | ${info.calls} DC | ${tris}k TRI | ${getVideoPresetName()}`;
+        }
     }
 
     updateLock(gameState, els);
@@ -186,37 +227,19 @@ function updateMinimap(gameState) {
     ctx.rect(0, 0, cw, ch);
     ctx.clip();
 
-    // River Senio
-    ctx.strokeStyle = '#2a6aff90';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    for (let z = -950; z <= 950; z += 50) {
-        const x = 350 + Math.sin(z * 0.008) * 40;
-        if (z === -950) ctx.moveTo(mx(x), my(z)); else ctx.lineTo(mx(x), my(z));
+    // Real map (land cover painted from OSM by terrain.js), dimmed for the radar look
+    const W = gameState.world;
+    if (W && W.colorMap) {
+        const k = W.colorMap.width / W.size, half = W.size / 2;
+        ctx.globalAlpha = 0.55;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(W.colorMap, (hx - RADAR_RANGE + half) * k, (hz - RADAR_RANGE + half) * k,
+            RADAR_RANGE * 2 * k, RADAR_RANGE * 2 * k, 0, 0, cw, ch);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = "rgba(0, 40, 0, 0.35)";
+        ctx.fillRect(0, 0, cw, ch);
     }
-    ctx.stroke();
 
-    // Town walls
-    ctx.strokeStyle = '#00ff4155';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(mx(-200), my(-150), 400 * scale, 300 * scale);
-
-    // Roads
-    ctx.strokeStyle = '#00ff4170';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(0, my(-20)); ctx.lineTo(cw, my(-20));
-    ctx.moveTo(mx(10), 0); ctx.lineTo(mx(10), ch);
-    ctx.stroke();
-
-    // Buildings
-    ctx.fillStyle = '#00ff4150';
-    for (const b of gameState.buildings || []) {
-        if (b.destroyed) continue;
-        const bx = mx(b.position.x), by = my(b.position.z);
-        if (bx < -4 || bx > cw + 4 || by < -4 || by > ch + 4) continue;
-        ctx.fillRect(bx - 1, by - 1, 2, 2);
-    }
 
     // Helipad
     if (gameState.helipad) {

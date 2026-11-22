@@ -15,11 +15,11 @@ import { initEffects, updateEffects } from './effects.js';
 import { initVehicles, updateVehicles } from './vehicles.js';
 import { initAnimals, updateAnimals } from './animals.js';
 import { initNPCs, updateNPCs } from './npcs.js';
-import { initHUD, updateHUD } from './hud.js';
+import { initHUD, updateHUD, notify, togglePerfOverlay } from './hud.js';
 import { initAudio, updateAudio } from './audio.js';
 import { initEnemies, updateEnemies } from './enemies.js';
-import { initMissions, updateMissions, beginCampaign, handleEnter } from './missions.js';
-import { initRetro, renderRetro } from './retro.js';
+import { initMissions, updateMissions, beginCampaign, beginFreeFlight, handleEnter } from './missions.js';
+import { initRetro, renderRetro, cycleVideoPreset } from './retro.js';
 
 // ---- GAME STATE ----
 const gameState = {
@@ -47,7 +47,7 @@ const titleScreen = document.getElementById('title-screen');
 const pauseScreen = document.getElementById('pause-screen');
 
 // ---- INIT ----
-function init() {
+async function init() {
     const canvas = document.getElementById('game-canvas');
 
     gameState.renderer = new THREE.WebGLRenderer({
@@ -65,7 +65,10 @@ function init() {
     initInput(gameState);
     initCamera(gameState);
     initSky(gameState);
-    initTerrain(gameState);
+    const prompt = document.querySelector('#title-screen .blink');
+    const setMsg = (m) => { if (prompt) prompt.textContent = m + '...'; };
+    await initTerrain(gameState, setMsg);
+    setMsg('BUILDING CASTEL BOLOGNESE');
     initBuildings(gameState);
     initTrees(gameState);
     initHelicopter(gameState);
@@ -79,6 +82,9 @@ function init() {
     initAudio(gameState);
     initMissions(gameState);
     initRetro(gameState);
+
+    if (prompt) prompt.textContent = 'INVIO: CAMPAGNA   |   F: VOLO LIBERO';
+    gameState.ready = true;
 
     const hi = document.getElementById('title-hiscore');
     if (hi) hi.textContent = `HI-SCORE ${String(gameState.hiScore).padStart(6, '0')}`;
@@ -94,6 +100,8 @@ function init() {
 }
 
 function handleGlobalKeys(e) {
+    if (!gameState.ready) return;
+
     if (e.code === 'Enter') {
         if (gameState.state === 'MENU') {
             titleScreen.classList.add('hidden');
@@ -104,9 +112,17 @@ function handleGlobalKeys(e) {
         return;
     }
 
+    if (gameState.state === 'MENU' && e.code === 'KeyF') {
+        titleScreen.classList.add('hidden');
+        beginFreeFlight(gameState);
+        return;
+    }
+
     if (gameState.state === 'PLAYING') {
         if (e.code === 'KeyP' || e.code === 'Escape') pauseGame();
         if (e.code === 'KeyC') cycleCamera(gameState);
+        if (e.code === 'KeyV') notify(`VIDEO: ${cycleVideoPreset(gameState)}`, '#00ff41', 2000);
+        if (e.code === 'KeyI') togglePerfOverlay();
     } else if (gameState.state === 'PAUSED') {
         if (e.code === 'KeyP' || e.code === 'Escape') resumeGame();
     }
@@ -180,4 +196,8 @@ function animate() {
 }
 
 // ---- START ----
-init();
+init().catch((err) => {
+    console.error(err);
+    const p = document.querySelector('#title-screen .blink');
+    if (p) p.textContent = 'LOAD ERROR: ' + err.message;
+});
