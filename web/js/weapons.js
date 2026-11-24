@@ -34,7 +34,7 @@ export function initWeapons(gameState) {
     };
 
     window.addEventListener('keydown', (e) => {
-        if (gameState.state !== 'PLAYING') return;
+        if (gameState.state !== 'PLAYING' || gameState.activeVehicle === 'car') return;
         const w = gameState.weapons;
         if (e.code === 'Digit1') w.selected = 0;
         else if (e.code === 'Digit2') w.selected = 1;
@@ -68,7 +68,7 @@ export function updateWeapons(gameState) {
     const h = gameState.helicopter;
     if (!h || !h.group) return;
 
-    if (h.alive) {
+    if (h.alive && gameState.activeVehicle !== 'car') {
         // --- Lock-on (cone ahead of the nose) ---
         const fwd = aimForward(h);
         w.lockTarget = findTarget(gameState, h.position, fwd, LOCK_ANGLE, LOCK_RANGE);

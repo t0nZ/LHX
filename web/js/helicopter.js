@@ -244,12 +244,39 @@ const WORLD_HALF = 950;
 
 let hitCooldown = 0;
 
-export function updateHelicopter(gameState) {
+export function updateHelicopter(gameState, isActive = true) {
     const h = gameState.helicopter;
     const input = gameState.input;
     const dt = gameState.delta;
     if (!h || !h.group || dt <= 0) return;
     if (!h.alive) return;
+
+    if (!isActive) {
+        // Auto-hover / gentle auto-land when player switches to the Peugeot 205
+        h.group.visible = true;
+        const gh = gameState.world ? gameState.world.getHeight(h.position.x, h.position.z) : 0;
+        h.velocity.x *= Math.max(0, 1 - 2.5 * dt);
+        h.velocity.z *= Math.max(0, 1 - 2.5 * dt);
+        if (h.position.y > gh + GROUND_CLEARANCE + 0.05) {
+            h.velocity.y += (-3.5 - h.velocity.y) * Math.min(1, dt * 3);
+            h.position.addScaledVector(h.velocity, dt);
+            h.onGround = false;
+        } else {
+            h.position.y = gh + GROUND_CLEARANCE;
+            h.velocity.set(0, 0, 0);
+            h.onGround = true;
+        }
+        h.altitude = Math.max(0, h.position.y - gh);
+        h.speed = Math.hypot(h.velocity.x, h.velocity.z) * 3.6;
+        h.pitch += (0 - h.pitch) * Math.min(1, dt * 4);
+        h.roll  += (0 - h.roll)  * Math.min(1, dt * 4);
+        h.group.rotation.set(h.pitch, h.yaw, h.roll, 'YXZ');
+        const idleRotor = h.onGround ? 6 : 18;
+        h.rotorSpeed = THREE.MathUtils.lerp(h.rotorSpeed, h.engineRunning ? idleRotor : 0, dt * 2);
+        h.rotorGroup.rotation.y += h.rotorSpeed * dt;
+        h.tailRotorGroup.rotation.y += h.rotorSpeed * 1.5 * dt;
+        return;
+    }
 
     const k = input.keys;
     hitCooldown = Math.max(0, hitCooldown - dt);

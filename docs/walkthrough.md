@@ -2,11 +2,12 @@
 
 ## Cos'è stato costruito
 
-Un simulatore retro di volo e combattimento in elicottero ispirato a **LHX Attack Chopper (EA, 1990)**, ambientato sulla **vera topografia e altimetria di Castel Bolognese (RA)** (`8.2 km × 8.2 km`, dati reali DEM + OpenStreetMap).
+Un simulatore retro 16-bit di **volo (elicottero LHX)** e **guida su strada (Peugeot 205 grigia 4 porte del 1986)** ambientato sulla **vera ortofoto aerea AGEA 2023 (Regione Emilia-Romagna, fino a 0,5 m/px), topografia e altimetria di Castel Bolognese (RA)** (`8.2 km × 8.2 km`, dati reali DEM + OpenStreetMap).
 
-- **100% client-side in Chrome** (Three.js r162 + ES modules + Web Audio API, tutte le dipendenze vendored in locale, zero CDN a runtime).
+- **100% client-side in Chrome** (Three.js r162 + ES modules + Web Audio API, zero CDN a runtime).
+- **Ortofoto aeree reali + Texture 16-bit**: 64 tile ortofoto AGEA 2023 (`web/assets/world/ortho/c_X_Z.jpg`, 7,15 MB totali) + texture atlas pixel-art 16-bit per i 4.259 edifici (persiane verdi/marroni romagnole, portici, mattoni, capannoni, tetti in coppi).
+- **Doppio mezzo all'eliporto (`LHX` ⇄ `Peugeot 205 '86`)**: partono affiancati alla base; tasto **`G`** per passare istantaneamente dall'uno all'altro (`Shift+G` quando l'LHX è atterrato ovunque per portare la 205 accanto all'elicottero).
 - **Servito staticamente da Docker sul server J1900 (`clanAI`)** tramite `nginx-unprivileged` read-only (~3–5 MB RAM, ~0% CPU a riposo).
-- **Ottimizzato per schede grafiche Intel integrate**: chunked LOD, 4.259 edifici reali fusi in chunk, alberi e nuvole instanziati, distance culling, shader VGA a singolo passo e 3 preset grafici commutabili al volo (`V`).
 
 > Per i dettagli tecnici di architettura, valutazione del motore grafico (low-poly vs sprite stratificati vs voxel), deploy Docker su J1900 e piano di handoff, vedi [ARCHITECTURE_AND_HANDOFF.md](ARCHITECTURE_AND_HANDOFF.md).
 
@@ -25,7 +26,9 @@ Un simulatore retro di volo e combattimento in elicottero ispirato a **LHX Attac
 | [web/js/retro.js](../web/js/retro.js) | Shader VGA Bayer 4×4 con sRGB integrato + switcher `V` (`VGA 3x` / `RETRO 2x` / `CRISP 1x`) |
 | [web/js/missions.js](../web/js/missions.js) | 3 missioni su coordinate reali (Via Emilia/Ponte del Castello, Fiume Senio, Colline Appenniniche) + **Volo Libero (`F`)** |
 | [web/js/enemies.js](../web/js/enemies.js) | IA nemica: carri armati, batterie contraeree (AA) ed elicotteri d'attacco |
-| [web/js/helicopter.js](../web/js/helicopter.js) | Modello poligonale LHX, fisica arcade/semi-realistica, limiti mondo `±3.950 m` |
+| [web/js/helicopter.js](../web/js/helicopter.js) | Modello poligonale LHX, fisica di volo, auto-hover/atterraggio dolce quando si passa all'auto |
+| [web/js/player_car.js](../web/js/player_car.js) | **Peugeot 205 grigia 4 porte (1986)**: texture pixel-art 16-bit, targa `RA`, cambio 5 marce, freno a mano, pendenza terreno |
+| [tools/bake_ortho.py](../tools/bake_ortho.py) | Baker offline Python (stdlib) per le 64 tile ortofoto AGEA 2023 Regione Emilia-Romagna (`0.5–2 m/px`) |
 | [web/js/weapons.js](../web/js/weapons.js) | Cannone M230 (traccianti + auto-aim su target agganciato) e missili Hellfire guidati |
 | [web/js/vehicles.js](../web/js/vehicles.js) | Traffico civile su vere strade OSM con culling a 1.100 m |
 | [web/js/animals.js](../web/js/animals.js) | Polli, mucche, cinghiali e lupi che fuggono dall'elicottero (culling a 450 m) |
@@ -58,14 +61,18 @@ Poi apri in Chrome: **`http://192.168.1.40:8030/`** (opzionale: `?q=lo` per iGPU
 
 | Tasto | Azione |
 |-------|--------|
-| **INVIO** (nel menu) | Avvia la Campagna (3 missioni reali su Castel Bolognese) |
-| **F** (nel menu) | Avvia **Volo Libero** (esplorazione senza nemici, edifici distruttibili) |
-| **W / S** | Avanti / Indietro |
-| **A / D** | Vira a sinistra / destra |
-| **Q / E** | Trasla (strafe) a sinistra / destra |
-| **SHIFT / R** | Aumenta collettivo (sali) |
-| **CTRL / F** | Riduci collettivo (scendi) |
-| **SPAZIO** | Fuoco (auto-aim su bersaglio agganciato) |
+| **INVIO** (nel menu) | Avvia la Campagna (LHX + Peugeot 205 pronti in base) |
+| **F** (nel menu) | Avvia **Volo Libero** sull'elicottero LHX |
+| **G** (nel menu) | Avvia **Guida Libera** direttamente sulla **Peugeot 205 (1986)** |
+| **G** (in gioco) | **Cambia veicolo al volo** (`LHX` ⇄ `Peugeot 205`) |
+| **SHIFT + G** (in gioco) | Se l'LHX è atterrato, porta la Peugeot 205 accanto all'elicottero e sali a bordo |
+| **W / S** | Avanti / Indietro (Peugeot 205: acceleratore / freno e retromarcia) |
+| **A / D** | Vira (LHX) / Sterza ruote anteriori (Peugeot 205) |
+| **Q / E** | Trasla (strafe) a sinistra / destra (LHX) |
+| **SHIFT / R** | Aumenta collettivo / sali (LHX) |
+| **CTRL / F** | Riduci collettivo / scendi (LHX) |
+| **SPAZIO** | Fuoco arma attiva (LHX) / **Freno a mano** (Peugeot 205) |
+| **H** | **Clacson** bitonale anni '80 (Peugeot 205) |
 | **1 / 2 / TAB** | Seleziona Cannone M230 / Missili Hellfire / cambia arma |
 | **C** | Cambia visuale telecamera (Chase → Cockpit → Dall'alto) |
 | **V** | Cambia preset grafico live (`VGA 3x` → `RETRO 2x` → `CRISP 1x`) |

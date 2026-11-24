@@ -1,5 +1,6 @@
 ﻿// ============================================
-// HUD.JS — Head-Up Display, target brackets & radar
+// HUD.JS — Head-Up Display, target brackets & aerial radar
+// (Supports both LHX Helicopter & 1986 Peugeot 205)
 // ============================================
 import * as THREE from 'three';
 import { getVideoPresetName } from './retro.js';
@@ -34,6 +35,8 @@ export function initHUD(gameState) {
         altitude: $('val-altitude'),
         msl: $('val-msl'),
         speed: $('val-speed'),
+        vspeedLabel: document.querySelector('#hud-vspeed .gauge-label'),
+        vspeedUnit: document.querySelector('#hud-vspeed .gauge-unit'),
         vspeed: $('val-vspeed'),
         weaponName: $('val-weapon-name'),
         ammo: $('val-ammo'),
@@ -50,6 +53,7 @@ export function initHUD(gameState) {
         arrowText: $('hud-arrow-text'),
         pad: $('hud-pad'),
         missileCount: $('val-missiles'),
+        crosshair: $('hud-crosshair'),
     };
     gameState.minimapCtx = $('minimap-canvas')?.getContext('2d');
 }
@@ -58,36 +62,56 @@ const CARDINALS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 
 export function updateHUD(gameState) {
     const h = gameState.helicopter;
+    const car = gameState.playerCar;
+    const isCar = gameState.activeVehicle === 'car' && car;
+    const active = isCar ? car : h;
     const w = gameState.weapons;
     const els = gameState.hudElements;
-    if (!h || !els.altitude) return;
+    if (!active || !els.altitude) return;
+
+    if (els.crosshair) els.crosshair.classList.toggle('hidden', isCar);
 
     // Altitude (AGL + true MSL above sea level)
-    els.altitude.textContent = Math.round(h.altitude);
+    const agl = isCar ? 0 : Math.round(h.altitude);
+    els.altitude.textContent = agl;
     if (els.msl && gameState.world) {
-        const msl = Math.round(h.position.y + (gameState.world.elevationBase || 0));
+        const msl = Math.round(active.position.y + (gameState.world.elevationBase || 0));
         els.msl.textContent = `${msl}m MSL`;
     }
-    if (els.altitudeBar) els.altitudeBar.style.width = Math.min(100, (h.altitude / 450) * 100) + '%';
+    if (els.altitudeBar) els.altitudeBar.style.width = Math.min(100, (agl / 450) * 100) + '%';
 
     // Speed (km/h)
-    els.speed.textContent = Math.round(h.speed);
+    els.speed.textContent = Math.round(active.speed);
 
-    // Vertical speed
-    const vs = h.velocity ? Math.round(h.velocity.y * 10) / 10 : 0;
-    els.vspeed.textContent = (vs >= 0 ? '+' : '') + vs.toFixed(1);
-    els.vspeed.style.color = vs < -6 ? '#ff4444' : (vs > 0.5 ? '#00ff41' : '#ffaa00');
+    // Vertical speed (LHX) or 5-speed Gearbox (Peugeot 205)
+    if (isCar) {
+        if (els.vspeedLabel) els.vspeedLabel.textContent = 'MARCIA';
+        if (els.vspeedUnit) els.vspeedUnit.textContent = car.handbrake ? 'FRENO!' : '5M';
+        els.vspeed.textContent = car.gear;
+        els.vspeed.style.color = car.gear === 'R' ? '#ffaa00' : '#00ff41';
+    } else {
+        if (els.vspeedLabel) els.vspeedLabel.textContent = 'VS';
+        if (els.vspeedUnit) els.vspeedUnit.textContent = 'm/s';
+        const vs = h.velocity ? Math.round(h.velocity.y * 10) / 10 : 0;
+        els.vspeed.textContent = (vs >= 0 ? '+' : '') + vs.toFixed(1);
+        els.vspeed.style.color = vs < -6 ? '#ff4444' : (vs > 0.5 ? '#00ff41' : '#ffaa00');
+    }
 
-    // Weapon info
-    if (w && w.types && w.types[w.selected]) {
+    // Right-hand vehicle / weapon info
+    if (isCar) {
+        els.weaponName.textContent = 'PEUGEOT 205 (1986)';
+        els.ammo.textContent = '4P';
+        els.ammo.style.color = '#7fd8ff';
+        if (els.missileCount) els.missileCount.textContent = 'G: LHX • H: CLACSON';
+    } else if (w && w.types && w.types[w.selected]) {
         const weapon = w.types[w.selected];
         els.weaponName.textContent = weapon.name;
         els.ammo.textContent = weapon.ammo;
         els.ammo.style.color = weapon.ammo <= weapon.maxAmmo * 0.2 ? '#ff4444' : '#00ff41';
-        if (els.missileCount) els.missileCount.textContent = `HF ${w.types[1].ammo}  GUN ${w.types[0].ammo}`;
+        if (els.missileCount) els.missileCount.textContent = `HF ${w.types[1].ammo}  GUN ${w.types[0].ammo}  [G:205]`;
     }
 
-    // Health
+    // Health (always shows LHX hull integrity)
     els.health.textContent = Math.round(h.health);
     if (els.healthBar) {
         els.healthBar.style.width = h.health + '%';
@@ -96,9 +120,9 @@ export function updateHUD(gameState) {
         else if (h.health < 60) els.healthBar.classList.add('warning');
     }
 
-    // Heading (0 = north = -Z, clockwise) + nearest real locality
+    // Heading + nearest real locality
     if (els.heading) {
-        let deg = (180 - THREE.MathUtils.radToDeg(h.yaw)) % 360;
+        let deg = (180 - THREE.MathUtils.radToDeg(active.yaw)) % 360;
         if (deg < 0) deg += 360;
         const card = CARDINALS[Math.round(deg / 45) % 8];
         els.heading.textContent = `${String(Math.round(deg)).padStart(3, '0')}° ${card}`;
@@ -106,7 +130,7 @@ export function updateHUD(gameState) {
     if (els.place && gameState.world && gameState.world.places && gameState.world.places.length) {
         let best = null, bestD = Infinity;
         for (const p of gameState.world.places) {
-            const d = Math.hypot(p.x - h.position.x, p.z - h.position.z);
+            const d = Math.hypot(p.x - active.position.x, p.z - active.position.z);
             if (d < bestD) { bestD = d; best = p; }
         }
         if (best) {
@@ -115,7 +139,7 @@ export function updateHUD(gameState) {
         }
     }
 
-    // Perf telemetry (toggled with 'I')
+    // Perf telemetry ('I')
     fpsFrames++;
     fpsAccum += gameState.delta;
     if (fpsAccum >= 0.4) {
@@ -128,24 +152,31 @@ export function updateHUD(gameState) {
         }
     }
 
-    updateLock(gameState, els);
-    updateArrow(gameState, els);
+    if (isCar) {
+        if (els.lockBox) els.lockBox.classList.add('hidden');
+    } else {
+        updateLock(gameState, els);
+    }
+    updateArrow(gameState, els, active);
 
-    // Warnings
-    if (h.altitude < 8 && !h.onGround && h.speed > 40) warn('ALTITUDE LOW');
+    // Warnings & Helipad/Switch hints
+    if (!isCar && h.altitude < 8 && !h.onGround && h.speed > 40) warn('ALTITUDE LOW');
     if (h.health < 30 && h.alive) warn('HULL CRITICAL', 2500);
 
-    // Helipad hint
     if (els.pad) {
         const pad = gameState.helipad;
-        const near = pad && Math.hypot(h.position.x - pad.x, h.position.z - pad.z) < pad.r + 10 && h.altitude < 40;
-        els.pad.classList.toggle('hidden', !near);
-        if (near) {
+        const distToOther = (h && car) ? Math.hypot(h.position.x - car.position.x, h.position.z - car.position.z) : 999;
+        const nearPad = !isCar && pad && Math.hypot(h.position.x - pad.x, h.position.z - pad.z) < pad.r + 10 && h.altitude < 40;
+        const nearSwap = distToOther < 28 && (isCar || h.altitude < 12);
+        els.pad.classList.toggle('hidden', !nearPad && !nearSwap);
+        if (nearPad && (!h.onGround || h.health < h.maxHealth)) {
             els.pad.textContent = (h.onGround && h.speed < 12) ? 'REARMING / REPAIRING...' : 'LAND ON PAD TO REARM';
+        } else if (nearSwap) {
+            els.pad.textContent = isCar ? 'PREMI [G] PER SALIRE SULL\'ELICOTTERO LHX' : 'PREMI [G] PER GUIDARE LA PEUGEOT 205';
         }
     }
 
-    updateMinimap(gameState);
+    updateMinimap(gameState, active, isCar);
 }
 
 function updateLock(gameState, els) {
@@ -177,19 +208,18 @@ function updateLock(gameState, els) {
     }
 }
 
-function updateArrow(gameState, els) {
-    const h = gameState.helicopter;
+function updateArrow(gameState, els, active) {
     if (!els.arrow) return;
     let best = null, bestD = Infinity;
     for (const e of gameState.enemies || []) {
         if (!e.alive) continue;
-        const d = Math.hypot(e.position.x - h.position.x, e.position.z - h.position.z);
+        const d = Math.hypot(e.position.x - active.position.x, e.position.z - active.position.z);
         if (d < bestD) { bestD = d; best = e; }
     }
     if (!best) { els.arrow.classList.add('hidden'); return; }
     els.arrow.classList.remove('hidden');
-    const bearing = Math.atan2(best.position.x - h.position.x, best.position.z - h.position.z);
-    const rel = bearing - h.yaw; // positive = target is to the left
+    const bearing = Math.atan2(best.position.x - active.position.x, best.position.z - active.position.z);
+    const rel = bearing - active.yaw;
     els.arrowIcon.style.transform = `rotate(${-rel}rad)`;
     els.arrowText.textContent = `${best.def.name} ${Math.round(bestD)}m`;
 }
@@ -202,22 +232,19 @@ function warn(text, interval = 2000) {
     notify('⚠ ' + text, '#ff4444', 2000);
 }
 
-// ---- RADAR / MINIMAP (centred on the helicopter, north up) ----
-const RADAR_RANGE = 700; // metres from centre to edge
-
-function updateMinimap(gameState) {
+// ---- RADAR / MINIMAP (real AGEA orthophoto background, shows both LHX & Peugeot 205) ----
+function updateMinimap(gameState, active, isCar) {
     const ctx = gameState.minimapCtx;
-    if (!ctx) return;
-    const heli = gameState.helicopter;
-    if (!heli) return;
+    if (!ctx || !active) return;
 
+    const radarRange = isCar ? 380 : 700; // zoomed-in street view when driving the 205!
     const cw = ctx.canvas.width;
     const ch = ctx.canvas.height;
     const halfW = cw / 2, halfH = ch / 2;
-    const scale = halfW / RADAR_RANGE;
-    const hx = heli.position.x, hz = heli.position.z;
-    const mx = (x) => halfW + (x - hx) * scale;
-    const my = (z) => halfH + (z - hz) * scale;
+    const scale = halfW / radarRange;
+    const ax = active.position.x, az = active.position.z;
+    const mx = (x) => halfW + (x - ax) * scale;
+    const my = (z) => halfH + (z - az) * scale;
 
     ctx.fillStyle = 'rgba(0, 12, 0, 0.9)';
     ctx.fillRect(0, 0, cw, ch);
@@ -227,19 +254,17 @@ function updateMinimap(gameState) {
     ctx.rect(0, 0, cw, ch);
     ctx.clip();
 
-    // Real map (land cover painted from OSM by terrain.js), dimmed for the radar look
     const W = gameState.world;
     if (W && W.colorMap) {
         const k = W.colorMap.width / W.size, half = W.size / 2;
-        ctx.globalAlpha = 0.55;
-        ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(W.colorMap, (hx - RADAR_RANGE + half) * k, (hz - RADAR_RANGE + half) * k,
-            RADAR_RANGE * 2 * k, RADAR_RANGE * 2 * k, 0, 0, cw, ch);
+        ctx.globalAlpha = 0.72;
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(W.colorMap, (ax - radarRange + half) * k, (az - radarRange + half) * k,
+            radarRange * 2 * k, radarRange * 2 * k, 0, 0, cw, ch);
         ctx.globalAlpha = 1;
-        ctx.fillStyle = "rgba(0, 40, 0, 0.35)";
+        ctx.fillStyle = 'rgba(0, 28, 8, 0.25)';
         ctx.fillRect(0, 0, cw, ch);
     }
-
 
     // Helipad
     if (gameState.helipad) {
@@ -249,7 +274,23 @@ function updateMinimap(gameState) {
         ctx.fillText('H', mx(gameState.helipad.x), my(gameState.helipad.z) + 4);
     }
 
-    // Vehicles
+    // Inactive player vehicle marker (so you can always find your parked 205 or LHX!)
+    if (isCar && gameState.helicopter) {
+        const lx = mx(gameState.helicopter.position.x), ly = my(gameState.helicopter.position.z);
+        ctx.fillStyle = '#00ff41';
+        ctx.font = '11px VT323';
+        ctx.textAlign = 'center';
+        ctx.fillText('▲LHX', lx, ly + 4);
+    } else if (!isCar && gameState.playerCar) {
+        const cx = mx(gameState.playerCar.position.x), cy = my(gameState.playerCar.position.z);
+        ctx.fillStyle = '#7fd8ff';
+        ctx.fillRect(cx - 3, cy - 2, 6, 4);
+        ctx.font = '10px VT323';
+        ctx.textAlign = 'center';
+        ctx.fillText('205', cx, cy - 4);
+    }
+
+    // Traffic cars
     ctx.fillStyle = '#ffaa00';
     for (const v of gameState.vehicles || []) {
         ctx.fillRect(mx(v.position.x) - 1, my(v.position.z) - 1, 2, 2);
@@ -276,11 +317,11 @@ function updateMinimap(gameState) {
     }
     ctx.restore();
 
-    // Player
+    // Active player arrow in centre
     ctx.save();
     ctx.translate(halfW, halfH);
-    ctx.rotate(Math.PI - (heli.yaw || 0));
-    ctx.fillStyle = '#00ff41';
+    ctx.rotate(Math.PI - (active.yaw || 0));
+    ctx.fillStyle = isCar ? '#7fd8ff' : '#00ff41';
     ctx.beginPath();
     ctx.moveTo(0, -6);
     ctx.lineTo(-4, 4);
@@ -290,7 +331,6 @@ function updateMinimap(gameState) {
     ctx.fill();
     ctx.restore();
 
-    // Range ring + border
     ctx.strokeStyle = '#00ff4130';
     ctx.lineWidth = 1;
     ctx.beginPath();

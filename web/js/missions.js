@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { spawnEnemy, clearEnemies, countAlive } from './enemies.js';
 import { checkBuildingCollision } from './buildings.js';
 import { repairPlayer } from './helicopter.js';
+import { resetPlayerCar } from './player_car.js';
 import { rearm } from './weapons.js';
 import { notify } from './hud.js';
 
@@ -111,21 +112,27 @@ export function initMissions(gameState) {
 
 export function beginCampaign(gameState) {
     gameState.freeFlight = false;
+    gameState.activeVehicle = 'helicopter';
     showBriefing(gameState);
 }
 
-export function beginFreeFlight(gameState) {
+export function beginFreeFlight(gameState, initialVehicle = 'helicopter') {
     gameState.freeFlight = true;
     clearEnemies(gameState);
     resetPlayer(gameState);
+    gameState.activeVehicle = initialVehicle;
     gameState.mission = null;
     gameState.state = 'PLAYING';
     $('hud').classList.remove('hidden');
-    $('m-title').textContent = 'VOLO LIBERO';
-    $('m-obj').textContent = 'CASTEL BOLOGNESE (8.2 km)';
-    $('m-score').textContent = 'MODO ESPLORAZIONE';
+    $('m-title').textContent = initialVehicle === 'car' ? 'GUIDA LIBERA — 205' : 'VOLO LIBERO — LHX';
+    $('m-obj').textContent = 'CASTEL BOLOGNESE (ORTOFOTO)';
+    $('m-score').textContent = 'G: CAMBIA LHX / 205';
     $('m-lives').textContent = 'V=VIDEO  I=FPS';
-    notify('VOLO LIBERO — TIENI SHIFT PER DECOLLARE', '#00ff41', 5000);
+    if (initialVehicle === 'car') {
+        notify('PEUGEOT 205 (1986) — W/A/S/D GUIDA, SPAZIO FRENO, H CLACSON, G ELICOTTERO', '#7fd8ff', 5500);
+    } else {
+        notify('VOLO LIBERO — SHIFT DECOLLA, G PASSA ALLA PEUGEOT 205', '#00ff41', 5000);
+    }
 }
 
 // ---------- Overlay ----------
@@ -164,8 +171,8 @@ function showBriefing(gameState) {
         gameState,
         `MISSIONE ${gameState.missionIndex + 1}/${MISSIONS.length}`,
         [`<span class="ov-big">${m.title}</span>`, '', ...m.brief,
-         '', 'COMANDI: W/S avanti-indietro  A/D vira  Q/E scorri',
-         'SHIFT/R sali  CTRL/F scendi  SPAZIO fuoco  TAB arma'],
+         '', 'ELICOTTERO: W/S avanti-indietro  A/D vira  SHIFT/CTRL quota  SPAZIO fuoco',
+         'PEUGEOT 205 (all\'eliporto): premi [G] per cambiare tra Elicottero e Auto!'],
         'PREMI INVIO PER DECOLLARE',
         () => startMission(gameState),
         'briefing'
@@ -188,6 +195,7 @@ function resetPlayer(gameState) {
     gameState.weapons.projectiles.forEach(p => gameState.scene.remove(p.mesh));
     gameState.weapons.projectiles.length = 0;
     gameState.weapons.lockTarget = null;
+    resetPlayerCar(gameState);
 }
 
 function prepareMission(gameState) {

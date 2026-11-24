@@ -9,6 +9,7 @@ import { initTerrain } from './terrain.js';
 import { initTrees } from './trees.js';
 import { initBuildings, updateBuildings } from './buildings.js';
 import { initHelicopter, updateHelicopter } from './helicopter.js';
+import { initPlayerCar, updatePlayerCar, resetPlayerCar } from './player_car.js';
 import { initCamera, updateCamera, cycleCamera } from './camera.js';
 import { initWeapons, updateWeapons } from './weapons.js';
 import { initEffects, updateEffects } from './effects.js';
@@ -31,6 +32,8 @@ const gameState = {
     time: 0,
     delta: 0,
     helicopter: null,
+    playerCar: null,
+    activeVehicle: 'helicopter', // 'helicopter' | 'car'
     buildings: [],
     trees: [],
     vehicles: [],
@@ -72,6 +75,7 @@ async function init() {
     initBuildings(gameState);
     initTrees(gameState);
     initHelicopter(gameState);
+    initPlayerCar(gameState);
     initWeapons(gameState);
     initEffects(gameState);
     initVehicles(gameState);
@@ -83,7 +87,7 @@ async function init() {
     initMissions(gameState);
     initRetro(gameState);
 
-    if (prompt) prompt.textContent = 'INVIO: CAMPAGNA   |   F: VOLO LIBERO';
+    if (prompt) prompt.textContent = 'INVIO: CAMPAGNA  |  F: VOLO LHX  |  G: PEUGEOT 205';
     gameState.ready = true;
 
     const hi = document.getElementById('title-hiscore');
@@ -114,7 +118,13 @@ function handleGlobalKeys(e) {
 
     if (gameState.state === 'MENU' && e.code === 'KeyF') {
         titleScreen.classList.add('hidden');
-        beginFreeFlight(gameState);
+        beginFreeFlight(gameState, 'helicopter');
+        return;
+    }
+
+    if (gameState.state === 'MENU' && e.code === 'KeyG') {
+        titleScreen.classList.add('hidden');
+        beginFreeFlight(gameState, 'car');
         return;
     }
 
@@ -123,8 +133,47 @@ function handleGlobalKeys(e) {
         if (e.code === 'KeyC') cycleCamera(gameState);
         if (e.code === 'KeyV') notify(`VIDEO: ${cycleVideoPreset(gameState)}`, '#00ff41', 2000);
         if (e.code === 'KeyI') togglePerfOverlay();
+        if (e.code === 'KeyG') toggleActiveVehicle(gameState, e.shiftKey);
+        if (e.code === 'KeyH' && gameState.activeVehicle === 'car' && gameState.audio) {
+            gameState.audio.playHorn();
+        }
     } else if (gameState.state === 'PAUSED') {
         if (e.code === 'KeyP' || e.code === 'Escape') resumeGame();
+    }
+}
+
+function toggleActiveVehicle(gameState, summonHere = false) {
+    resetKeys();
+    const h = gameState.helicopter;
+    const car = gameState.playerCar;
+    if (!h || !car) return;
+
+    if (gameState.activeVehicle === 'car') {
+        if (!h.alive) {
+            notify('ELICOTTERO DISTRUTTO!', '#ff4444', 2500);
+            return;
+        }
+        gameState.activeVehicle = 'helicopter';
+        if (gameState.freeFlight) {
+            const mt = document.getElementById('m-title');
+            if (mt) mt.textContent = 'VOLO LIBERO — LHX';
+        }
+        if (gameState.audio) gameState.audio.playBeep(740, 0.09);
+        notify('AI COMANDI: ELICOTTERO LHX', '#00ff41', 2800);
+    } else {
+        if (summonHere && h.onGround) {
+            const rightX = -Math.cos(h.yaw), rightZ = Math.sin(h.yaw);
+            resetPlayerCar(gameState, h.position.x + rightX * 10, h.position.z + rightZ * 10, h.yaw);
+            notify('PEUGEOT 205 PORTATA ACCANTO ALL\'LHX!', '#7fd8ff', 2800);
+        } else {
+            notify('ALLA GUIDA: PEUGEOT 205 (1986) — [G] TORNA A LHX', '#7fd8ff', 3000);
+        }
+        gameState.activeVehicle = 'car';
+        if (gameState.freeFlight) {
+            const mt = document.getElementById('m-title');
+            if (mt) mt.textContent = 'GUIDA LIBERA — 205';
+        }
+        if (gameState.audio) gameState.audio.playBeep(560, 0.09);
     }
 }
 
@@ -164,7 +213,9 @@ function animate() {
 
     if (playing) {
         updateInput(gameState);
-        updateHelicopter(gameState);
+        const inCar = gameState.activeVehicle === 'car';
+        updateHelicopter(gameState, !inCar);
+        updatePlayerCar(gameState, inCar);
         updateWeapons(gameState);
         updateEnemies(gameState);
         updateMissions(gameState);

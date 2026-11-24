@@ -1,28 +1,24 @@
 // ============================================
-// TERRAIN.JS — REAL Castel Bolognese terrain (DEM + OpenStreetMap)
+// TERRAIN.JS — Real Castel Bolognese DEM + AGEA 2023 Orthophoto Tiles
 // --------------------------------------------
-// Loads static assets baked offline by tools/bake_world.py:
-//   assets/world/world.json  (metadata)
-//   assets/world/height.bin  (Uint16 heightmap, 16 m grid, 8.2 x 8.2 km)
-//   assets/world/osm.json    (buildings, roads, water, land use, trees...)
-// Everything heavy happens in the CLIENT (Chrome). The server only serves files.
+// Loads static assets baked offline by tools/bake_world.py & tools/bake_ortho.py:
+//   assets/world/world.json        (metadata)
+//   assets/world/height.bin        (Uint16 heightmap, 16 m grid, 8.2 x 8.2 km)
+//   assets/world/osm.json          (buildings, roads, water, land use, trees...)
+//   assets/world/ortho/c_X_Z.jpg   (64 real Regione Emilia-Romagna AGEA 2023 RGB tiles:
+//                                   0.5 m/px over town & helipad, 1 m/px ring, 2 m/px hills)
 //
-// Coordinates: x = East, z = South, y = up (metres). Origin = Piazza Bernardi.
-// Heights are re-based so that the town centre is y = 0 (world.elevationBase
-// holds the real MSL height of the origin -> HUD can show true altitude).
-//
-// Public API (kept identical to the old procedural terrain so other modules
-// keep working): gameState.world = { size, getHeight, isRoad, isWater, isInTown,
-// isPiazza, roadPaths, ... } and gameState.helipad = {x, z, r}.
+// NearestFilter magnification gives crisp 16-bit pixel texels at car bumper height
+// while mipmaps + anisotropy prevent distant shimmering from helicopter altitude.
 // ============================================
 import * as THREE from 'three';
 
-export let WORLD_SIZE = 8192;           // overwritten from world.json at load
+export let WORLD_SIZE = 8192;
 const QUALITY = new URLSearchParams(location.search).get('q') || 'auto';
+const CHUNKS = 8;
 
-// Land-cover palette (retro-flat but faithful to Romagna colours)
 const AREA_COLORS = {
-    farmland: [0x8f9a4c, 0x7d9142, 0xa59a5a, 0x6e8a3c, 0x9a8455, 0xb2a462],  // varied crop plots
+    farmland: [0x8f9a4c, 0x7d9142, 0xa59a5a, 0x6e8a3c, 0x9a8455, 0xb2a462],
     orchard: 0x5d8838, vineyard: 0x7b8a42, meadow: 0x77a24a, grass: 0x6fa046,
     grassland: 0x80a850, village_green: 0x6fa046, recreation_ground: 0x6aa045,
     residential: 0x9c9585, industrial: 0x8c8a86, commercial: 0x928c84, retail: 0x928c84,
@@ -40,7 +36,6 @@ const WATER = 0x3a6a98;
 const ROAD_COLORS = ['#55555a', '#5c5c60', '#646466', '#6e6e6e', '#7a7874', '#9e8c68', '#a49a88', '#a09684'];
 const BUILDING_BASE = '#4d4640';
 
-// ---------------------------------------------------------------- loading
 async function loadWorldData() {
     const [meta, hbuf, osm] = await Promise.all([
         fetch('assets/world/world.json').then(r => r.json()),
@@ -50,7 +45,6 @@ async function loadWorldData() {
     return { meta, hbuf, osm };
 }
 
-// ---------------------------------------------------------------- heightfield
 function makeHeightField(meta, hbuf) {
     const n = meta.grid, raw = new Uint16Array(hbuf);
     const base = meta.centerHeight;
@@ -69,7 +63,6 @@ function makeHeightField(meta, hbuf) {
     return { h, n, base, getHeight };
 }
 
-// ---------------------------------------------------------------- land-cover rasters
 function hash(i) { i = (i ^ 61) ^ (i >>> 16); i = i + (i << 3); i ^= i >>> 4; i = Math.imul(i, 0x27d4eb2d); return (i ^ (i >>> 15)) >>> 0; }
 function hex(c) { return '#' + c.toString(16).padStart(6, '0'); }
 
@@ -83,7 +76,7 @@ function traceLine(g, p, toPx) {
     for (let i = 2; i < p.length; i += 2) g.lineTo(toPx(p[i]), toPx(p[i + 1]));
 }
 
-// Colour texture draped on the terrain mesh (what the player sees)
+// Fast fallback + initial radar minimap canvas (progressively overwritten by real orthophotos)
 function paintColorMap(osm, size, res) {
     const c = document.createElement('canvas');
     c.width = c.height = res;
@@ -93,7 +86,6 @@ function paintColorMap(osm, size, res) {
     g.fillStyle = hex(DEFAULT_GROUND);
     g.fillRect(0, 0, res, res);
 
-    // Land-use areas, big first so small details stay on top
     const areas = osm.areas.slice().sort((a, b) => b.p.length - a.p.length);
     areas.forEach((a, i) => {
         let col = AREA_COLORS[a.k];
@@ -102,30 +94,26 @@ function paintColorMap(osm, size, res) {
         g.fillStyle = hex(col);
         g.beginPath(); tracePoly(g, a.p, toPx); g.fill();
     });
-    // Water
     g.fillStyle = hex(WATER);
     for (const p of osm.waterAreas) { g.beginPath(); tracePoly(g, p, toPx); g.fill(); }
     g.strokeStyle = hex(WATER); g.lineCap = g.lineJoin = 'round';
     for (const w of osm.waterLines) {
         g.lineWidth = Math.max(1, w.w * k); g.beginPath(); traceLine(g, w.p, toPx); g.stroke();
     }
-    // Rail
     g.strokeStyle = '#4a4038';
     for (const p of osm.rail) { g.lineWidth = Math.max(1, 4 * k); g.beginPath(); traceLine(g, p, toPx); g.stroke(); }
-    // Roads: minor first, major on top
     const roads = osm.roads.slice().sort((a, b) => b.c - a.c);
     for (const r of roads) {
         g.strokeStyle = ROAD_COLORS[r.c] || ROAD_COLORS[5];
         g.lineWidth = Math.max(r.c >= 7 ? 0.6 : 1, r.w * k);
         g.beginPath(); traceLine(g, r.p, toPx); g.stroke();
     }
-    // Building footprints (dark base = fake ambient occlusion around houses)
     g.fillStyle = BUILDING_BASE;
     for (const b of osm.buildings) { g.beginPath(); tracePoly(g, b.p, toPx); g.fill(); }
     return c;
 }
 
-// Classification raster (logic, not visuals): R = water, G = road, B = built-up
+// Classification raster (logic): R = water, G = road, B = built-up
 function paintClassMap(osm, size, res) {
     const c = document.createElement('canvas');
     c.width = c.height = res;
@@ -133,7 +121,7 @@ function paintClassMap(osm, size, res) {
     const k = res / size, half = size / 2;
     const toPx = v => (v + half) * k;
     g.fillStyle = '#000'; g.fillRect(0, 0, res, res);
-    g.globalCompositeOperation = 'lighter';                 // channels add up independently
+    g.globalCompositeOperation = 'lighter';
     const TOWN = new Set(['residential', 'industrial', 'commercial', 'retail', 'construction', 'garages', 'parking', 'school']);
     g.fillStyle = '#0000ff';
     for (const a of osm.areas) if (TOWN.has(a.k)) { g.beginPath(); tracePoly(g, a.p, toPx); g.fill(); }
@@ -157,15 +145,16 @@ function paintClassMap(osm, size, res) {
     };
 }
 
-// ---------------------------------------------------------------- mesh (chunked, 2 LODs, skirts)
-function buildChunkGeometry(hf, x0, z0, chunk, cells, size) {
-    const step = chunk / cells, n = cells + 1, half = size / 2;
+// ---------------------------------------------------------------- mesh (chunked, 2 LODs, local 0..1 UVs per chunk)
+function buildChunkGeometry(hf, x0, z0, chunk, cells) {
+    const step = chunk / cells, n = cells + 1;
     const cx = x0 + chunk * 0.5, cz = z0 + chunk * 0.5;
     const cy = hf.getHeight(cx, cz);
     const pos = [], uv = [], idx = [];
     const vert = (x, z, y) => {
         pos.push(x - cx, y - cy, z - cz);
-        uv.push((x + half) / size, 1 - (z + half) / size);
+        // Local chunk UVs [0..1]: u=0 West->1 East, v=1 North(z0)->0 South(z0+chunk)
+        uv.push((x - x0) / chunk, 1 - (z - z0) / chunk);
         return pos.length / 3 - 1;
     };
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
@@ -174,9 +163,8 @@ function buildChunkGeometry(hf, x0, z0, chunk, cells, size) {
     }
     for (let j = 0; j < cells; j++) for (let i = 0; i < cells; i++) {
         const a = j * n + i, b = a + 1, c = a + n, d = c + 1;
-        idx.push(a, c, b, b, c, d);                               // CCW seen from above -> faces up
+        idx.push(a, c, b, b, c, d);
     }
-    // Skirts hide cracks between neighbouring chunks at different LODs
     const SK = 40;
     const edge = (list) => {
         for (let k = 0; k < list.length - 1; k++) {
@@ -185,7 +173,7 @@ function buildChunkGeometry(hf, x0, z0, chunk, cells, size) {
             const bx = pos[b * 3] + cx, by = pos[b * 3 + 1] + cy, bz = pos[b * 3 + 2] + cz;
             const a2 = vert(ax, az, ay - SK);
             const b2 = vert(bx, bz, by - SK);
-            idx.push(a, a2, b, b, a2, b2, a, b, a2, b, b2, a2);    // double-sided strip
+            idx.push(a, a2, b, b, a2, b2, a, b, a2, b, b2, a2);
         }
     };
     const top = [], bottom = [], left = [], right = [];
@@ -201,26 +189,97 @@ function buildChunkGeometry(hf, x0, z0, chunk, cells, size) {
     return { geo, center: [cx, cy, cz] };
 }
 
-function buildTerrainMeshes(gameState, hf, size, texture) {
-    const material = new THREE.MeshLambertMaterial({ map: texture, flatShading: true });
-    const CHUNKS = 8, chunk = size / CHUNKS, half = size / 2;
+function makeFallbackChunkTexture(colorCanvas, cx, cz, aniso) {
+    const tilePx = colorCanvas.width / CHUNKS;
+    const sub = document.createElement('canvas');
+    sub.width = sub.height = tilePx;
+    sub.getContext('2d').drawImage(colorCanvas, cx * tilePx, cz * tilePx, tilePx, tilePx, 0, 0, tilePx, tilePx);
+    const tex = new THREE.CanvasTexture(sub);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.anisotropy = aniso;
+    return tex;
+}
+
+function loadOrthoTile(cx, cz, mat, colorCanvas, aniso) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.decoding = 'async';
+        img.onload = () => {
+            // Optional downscale in ?q=lo mode to save iGPU VRAM on very old chipsets
+            let source = img;
+            if (QUALITY === 'lo' && img.width > 512) {
+                const c = document.createElement('canvas');
+                c.width = c.height = 512;
+                c.getContext('2d').drawImage(img, 0, 0, 512, 512);
+                source = c;
+            }
+            const tex = new THREE.Texture(source);
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+            // NearestFilter magnification = crisp 16-bit texels up close (no blurry road edges!)
+            tex.magFilter = THREE.NearestFilter;
+            tex.minFilter = THREE.LinearMipmapLinearFilter;
+            tex.anisotropy = aniso;
+            tex.needsUpdate = true;
+
+            const old = mat.map;
+            mat.map = tex;
+            mat.needsUpdate = true;
+            if (old) old.dispose();
+
+            // Composite onto radar minimap canvas so HUD minimap shows real aerial view too
+            const tilePx = colorCanvas.width / CHUNKS;
+            colorCanvas.getContext('2d').drawImage(img, cx * tilePx, cz * tilePx, tilePx, tilePx);
+            resolve(true);
+        };
+        img.onerror = () => resolve(false);
+        img.src = `assets/world/ortho/c_${cx}_${cz}.jpg`;
+    });
+}
+
+async function buildTerrainMeshes(gameState, hf, size, colorCanvas, onProgress) {
+    const chunk = size / CHUNKS, half = size / 2;
     const fine = Math.round(chunk / 16), coarse = Math.round(chunk / 64);
+    const aniso = Math.min(4, gameState.renderer.capabilities.getMaxAnisotropy());
     const group = new THREE.Group();
+    const coreJobs = [];
+    const outerJobs = [];
+
     for (let cz = 0; cz < CHUNKS; cz++) for (let cx = 0; cx < CHUNKS; cx++) {
         const x0 = -half + cx * chunk, z0 = -half + cz * chunk;
+        const fallbackTex = makeFallbackChunkTexture(colorCanvas, cx, cz, aniso);
+        const mat = new THREE.MeshLambertMaterial({ map: fallbackTex, flatShading: true });
+
         const lod = new THREE.LOD();
-        const f = buildChunkGeometry(hf, x0, z0, chunk, fine, size);
-        const c = buildChunkGeometry(hf, x0, z0, chunk, coarse, size);
+        const f = buildChunkGeometry(hf, x0, z0, chunk, fine);
+        const c = buildChunkGeometry(hf, x0, z0, chunk, coarse);
         lod.position.set(f.center[0], f.center[1], f.center[2]);
-        lod.addLevel(new THREE.Mesh(f.geo, material), 0);
-        lod.addLevel(new THREE.Mesh(c.geo, material), chunk * 1.5);
+        lod.addLevel(new THREE.Mesh(f.geo, mat), 0);
+        lod.addLevel(new THREE.Mesh(c.geo, mat), chunk * 1.5);
         group.add(lod);
+
+        const isCore = cx >= 2 && cx <= 5 && cz >= 2 && cz <= 5;
+        if (isCore) coreJobs.push(() => loadOrthoTile(cx, cz, mat, colorCanvas, aniso));
+        else outerJobs.push(() => loadOrthoTile(cx, cz, mat, colorCanvas, aniso));
     }
     gameState.scene.add(group);
+
+    // Await core 16 tiles around Castel Bolognese + Helipad (~200ms on LAN), stream outer 48 in background
+    onProgress('LOADING AERIAL ORTHOPHOTOS');
+    await Promise.all(coreJobs.map(fn => fn()));
+    (async () => {
+        for (let i = 0; i < outerJobs.length; i += 6) {
+            await Promise.all(outerJobs.slice(i, i + 6).map(fn => fn()));
+        }
+    })();
+
     return group;
 }
 
-// ---------------------------------------------------------------- helipad on a real open field
+// ---------------------------------------------------------------- helipad + Peugeot 205 parking apron
 function findHelipad(hf, cls, osm) {
     const occupied = new Set();
     const CELL = 20;
@@ -236,7 +295,6 @@ function findHelipad(hf, cls, osm) {
         }
         return true;
     };
-    // Spiral search from a preferred spot just west of the old town
     const px = -700, pz = 150;
     for (let r = 0; r < 1500; r += 20)
         for (let a = 0; a < Math.PI * 2; a += Math.max(0.05, 20 / (r + 1))) {
@@ -250,7 +308,7 @@ function createHelipadMesh(gameState, pad, getHeight) {
     const c = document.createElement('canvas');
     c.width = c.height = 64;
     const g = c.getContext('2d');
-    g.fillStyle = '#5a5a5a'; g.fillRect(0, 0, 64, 64);
+    g.fillStyle = '#525458'; g.fillRect(0, 0, 64, 64);
     g.strokeStyle = '#ffd800'; g.lineWidth = 4;
     g.beginPath(); g.arc(32, 32, 28, 0, Math.PI * 2); g.stroke();
     g.fillStyle = '#ffffff';
@@ -261,11 +319,31 @@ function createHelipadMesh(gameState, pad, getHeight) {
     const geo = new THREE.CircleGeometry(pad.r, 20);
     geo.rotateX(-Math.PI / 2);
     const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
-    mesh.position.set(pad.x, getHeight(pad.x, pad.z) + 0.3, pad.z);
+    mesh.position.set(pad.x, getHeight(pad.x, pad.z) + 0.25, pad.z);
     gameState.scene.add(mesh);
+
+    // Adjacent asphalt parking bay for the 1986 Peugeot 205
+    const pc = document.createElement('canvas');
+    pc.width = 64; pc.height = 32;
+    const pg = pc.getContext('2d');
+    pg.fillStyle = '#4d5056'; pg.fillRect(0, 0, 64, 32);
+    pg.strokeStyle = '#e8e4d0'; pg.lineWidth = 2;
+    pg.strokeRect(18, 4, 42, 24);
+    pg.fillStyle = '#ffd800'; pg.font = 'bold 10px monospace';
+    pg.fillText('205', 30, 20);
+    const ptex = new THREE.CanvasTexture(pc);
+    ptex.magFilter = ptex.minFilter = THREE.NearestFilter;
+    ptex.colorSpace = THREE.SRGBColorSpace;
+    const pgeo = new THREE.PlaneGeometry(14, 7);
+    pgeo.rotateX(-Math.PI / 2);
+    const pmesh = new THREE.Mesh(pgeo, new THREE.MeshBasicMaterial({ map: ptex, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    const px = pad.x + 18, pz = pad.z;
+    pmesh.position.set(px, getHeight(px, pz) + 0.22, pz);
+    gameState.scene.add(pmesh);
+
+    gameState.carSpawn = { x: pad.x + 20, z: pad.z, yaw: 0 };
 }
 
-// ---------------------------------------------------------------- vehicle paths from real roads
 function buildRoadPaths(osm, getHeight) {
     const paths = [];
     for (const r of osm.roads) {
@@ -273,16 +351,15 @@ function buildRoadPaths(osm, getHeight) {
         let len = 0;
         for (let i = 2; i < r.p.length; i += 2) len += Math.hypot(r.p[i] - r.p[i - 2], r.p[i + 1] - r.p[i - 1]);
         const cx = r.p[0], cz = r.p[1];
-        if (len < 150 || Math.hypot(cx, cz) > 3000) continue;
+        if (len < 150 || Math.hypot(cx, cz) > 3500) continue;
         const pts = [];
         for (let i = 0; i < r.p.length; i += 2) pts.push(new THREE.Vector3(r.p[i], getHeight(r.p[i], r.p[i + 1]) + 0.5, r.p[i + 1]));
         paths.push({ name: r.n || r.k, points: pts, loop: false, len });
     }
     paths.sort((a, b) => b.len - a.len);
-    return paths.slice(0, 80);
+    return paths.slice(0, 90);
 }
 
-// ---------------------------------------------------------------- init
 export async function initTerrain(gameState, onProgress = () => {}) {
     onProgress('DOWNLOADING TERRAIN DATA');
     const { meta, hbuf, osm } = await loadWorldData();
@@ -291,30 +368,22 @@ export async function initTerrain(gameState, onProgress = () => {}) {
     onProgress('BUILDING HEIGHTFIELD');
     const hf = makeHeightField(meta, hbuf);
 
-    onProgress('PAINTING LAND COVER');
-    // Texture resolution: 2048 (4 m/px) is safe for Intel iGPUs; ?q=hi -> 4096, ?q=lo -> 1024
-    const res = QUALITY === 'hi' ? 4096 : QUALITY === 'lo' ? 1024 : 2048;
-    const colorCanvas = paintColorMap(osm, meta.size, res);
-    const tex = new THREE.CanvasTexture(colorCanvas);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.magFilter = THREE.NearestFilter;                     // chunky retro texels up close
-    tex.minFilter = THREE.LinearMipmapLinearFilter;          // no shimmering far away
-    tex.anisotropy = Math.min(4, gameState.renderer.capabilities.getMaxAnisotropy());
+    onProgress('PREPARING MAP LAYERS');
+    const colorCanvas = paintColorMap(osm, meta.size, 1024);
     const cls = paintClassMap(osm, meta.size, 1024);
-
-    onProgress('MESHING TERRAIN');
-    gameState.terrain = buildTerrainMeshes(gameState, hf, meta.size, tex);
 
     const pad = findHelipad(hf, cls, osm);
     createHelipadMesh(gameState, pad, hf.getHeight);
     gameState.helipad = pad;
 
+    gameState.terrain = await buildTerrainMeshes(gameState, hf, meta.size, colorCanvas, onProgress);
+
     gameState.world = {
         size: meta.size,
         meta,
-        osm,                                   // raw baked data for buildings/trees modules
+        osm,
         places: osm.places || [],
-        elevationBase: hf.base,                // MSL height of y = 0
+        elevationBase: hf.base,
         getHeight: hf.getHeight,
         getMSL: (x, z) => hf.getHeight(x, z) + hf.base,
         isRoad: cls.isRoad,
@@ -322,7 +391,7 @@ export async function initTerrain(gameState, onProgress = () => {}) {
         isInTown: cls.isInTown,
         isPiazza: (x, z) => cls.isRoad(x, z) && cls.isInTown(x, z),
         roadPaths: buildRoadPaths(osm, hf.getHeight),
-        colorMap: colorCanvas,                 // reusable for the minimap
+        colorMap: colorCanvas,
     };
 }
 

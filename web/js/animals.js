@@ -272,7 +272,8 @@ function createAnimalMesh(type, config, rand) {
 
 export function updateAnimals(gameState) {
     const dt = gameState.delta;
-    const heliPos = gameState.helicopter ? gameState.helicopter.position : null;
+    const activeObj = gameState.activeVehicle === 'car' ? gameState.playerCar : gameState.helicopter;
+    const heliPos = activeObj ? activeObj.position : null;
     const camPos = gameState.camera ? gameState.camera.position : heliPos;
     const bound = gameState.world ? gameState.world.size / 2 - 100 : 900;
     const CULL_SQ = 450 * 450;

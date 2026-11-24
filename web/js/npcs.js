@@ -138,7 +138,8 @@ function createFarmerMesh(rand) {
 
 export function updateNPCs(gameState) {
     const dt = gameState.delta;
-    const heliPos = gameState.helicopter ? gameState.helicopter.position : null;
+    const activeObj = gameState.activeVehicle === 'car' ? gameState.playerCar : gameState.helicopter;
+    const heliPos = activeObj ? activeObj.position : null;
     const camPos = gameState.camera ? gameState.camera.position : heliPos;
     const CULL_SQ = 450 * 450;
 
